@@ -1,7 +1,7 @@
 // Разбор ответов модели. Всё, что возвращает null или считается «плохим», background
 // обрабатывает сам: делит батч, переспрашивает по одному, помечает блок ошибкой.
 
-// Модели с thinking иногда всё равно пишут рассуждение, даже при think: false.
+// Модели с thinking иногда всё равно пишут рассуждение, даже при enable_thinking: false.
 export function stripThinking(content) {
   return String(content ?? "").replace(/<think>[\s\S]*?<\/think>/gi, "");
 }

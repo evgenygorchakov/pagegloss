@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Ollama Translator — Settings</title>
+    <title>PageGloss — Settings</title>
     <link rel="stylesheet" href="options.css" />
     <script type="module" src="../shared/theme-page.js"></script>
     <script type="module" src="options.js"></script>
@@ -15,26 +15,28 @@
     <main>
       <header class="page-head">
         <span class="mark" aria-hidden="true">✦</span>
-        <div><p class="eyebrow">Ollama Translator</p><h1>Settings</h1></div>
+        <div><p class="eyebrow">PageGloss</p><h1>Settings</h1></div>
       </header>
       <p class="intro">Make your local text workspace feel like yours.</p>
 
       <form id="form" novalidate>
         <section>
-          <h2>Ollama</h2>
+          <h2>llama.cpp</h2>
           <div class="field">
-            <label for="ollamaUrl">Ollama address</label>
+            <label for="llamaUrl">llama.cpp address</label>
             <div class="row">
-              <input id="ollamaUrl" type="url" placeholder="http://127.0.0.1:11434" spellcheck="false" />
+              <input id="llamaUrl" type="url" placeholder="http://127.0.0.1:9931" spellcheck="false" />
               <button id="check" type="button">Check</button>
             </div>
             <small class="help">
-              For Ollama on another computer the extension will ask for permission to access this
-              address. That Ollama also needs
-              <code>OLLAMA_ORIGINS=chrome-extension://*,moz-extension://*</code>.
+              Llama app and the browser on the same Windows computer use
+              <code>http://127.0.0.1:9931</code>. Start the model's chat/server in Llama app.
+              For another address, the extension will ask for access.
+              If the server reports HTTP 403, allow <code id="llama-origin"></code>
+              with the server's <code>--cors-origins</code> option.
             </small>
           </div>
-          <p id="ollama-status" class="status" data-kind="checking"></p>
+          <p id="llama-status" class="status" data-kind="checking"></p>
 
           <label class="field">
             <span>Model</span>
@@ -64,12 +66,12 @@
             Off by default. Without web search, Ask freely and Text workspace use the provided
             text and the model's knowledge. Enable it after setting up SearXNG.
             Searches go through your SearXNG server;
-            answers use your selected Ollama model.
+            answers use your selected llama.cpp model.
             No API key is needed. SearXNG must allow JSON search
             (<code>search.formats: [html, json]</code> in <code>settings.yml</code>).
             Save checks SearXNG before enabling search or changing its address while search is on.
             Check runs a sample search without enabling it. Answers use search excerpts, not full page downloads.
-            Requires a model with tool support and a context of at least 8192, set in Ollama.
+            Requires a model with tool support and a context of at least 8192, set in llama.cpp.
           </small>
           <p id="web-status" class="status" role="status"></p>
         </section>
@@ -95,10 +97,10 @@
             </label>
           </div>
           <small class="help">
-            Context length is managed in the Ollama app. The extension uses the loaded model's
-            context and shows token usage in the popup and next to answers.
-            More than 1 parallel request only helps if the model fits entirely in VRAM
-            (<code>ollama ps</code> → 100% GPU) and <code>OLLAMA_NUM_PARALLEL</code> is set.
+            Set context length in Llama app or with <code>llama serve -c</code>.
+            The extension uses the context available to one server slot and shows token usage
+            in the popup and next to answers. Start with 1 parallel request; increasing it
+            requires enough memory and server slots (<code>--parallel</code>).
           </small>
         </section>
 

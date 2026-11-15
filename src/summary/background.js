@@ -24,19 +24,19 @@
 // заметки по частям, сведение заметок, итог; { step: "think" } — модель начала рассуждать; у
 // вопроса — { step: "search", part, parts } | { step: "final" }: поиск по частям, ответ;
 // partial { text } — ответ по мере генерации; result { text, cut, context, thinkMs?, missed?, parts? } —
-// готово, cut — ответ упёрся в num_ctx; thinkMs — сколько модель рассуждала, от первого куска
+// готово, cut — ответ упёрся в n_ctx; thinkMs — сколько модель рассуждала, от первого куска
 // рассуждения до первого куска ответа, у запросов без рассуждения поля нет; missed — у вопроса
 // по длинному тексту: в скольких из parts частей модель упёрлась в предел, ничего не выписав; у
 // clickbait — result { clickbait, reason }; error { code, message }, у субтитров code — из
 // pageCaptions (lib/youtube-captions.js); stopped — «Стоп».
-// Панель закрыли или сменили режим — порт отключился — запрос к Ollama отменён.
+// Панель закрыли или сменили режим — порт отключился — запрос к llama.cpp отменён.
 // У chat ещё web-status { enabled }, progress { step: "web-search", detail },
 // в result — sources [{ id, title, url }], webLimited. Ключ API остаётся только в background.
 
-import { ErrorCode, OllamaError } from "../lib/ollama.js";
+import { ErrorCode, LlamaError } from "../lib/llama.js";
 import { stripThinking } from "../lib/parse.js";
 import { getSettings } from "../lib/settings.js";
-import { chatWithRetry, toOllamaError } from "../lib/translate.js";
+import { chatWithRetry, toLlamaError } from "../lib/translate.js";
 import { withPrioritySlot } from "../lib/priority.js";
 import { onPortClosed, safePost } from "../lib/port.js";
 import { onStop, registerQueue } from "../lib/stop.js";
@@ -82,7 +82,7 @@ const PANEL_SCRIPTS = [
 ];
 // partial — не на каждый токен, а не чаще раза в столько
 const PARTIAL_MS = 150;
-// Дальше текст не читаем: при num_ctx 8192 это уже 9 частей, минуты на медленном железе.
+// Дальше текст не читаем: при n_ctx 8192 это уже 9 частей, минуты на медленном железе.
 const MAX_CHARS = 150_000;
 // Заметки по частям — для стольких последних текстов (см. notesEntry).
 const NOTES_CACHE_SIZE = 6;
@@ -216,34 +216,34 @@ async function transcript(tabId, videoId) {
 // job — запрос панели, краткое содержание или вопрос: { port, controller, queued }; queued —
 // сколько запросов к модели у него ещё впереди, для «■ Стоп» в popup.
 
-// Модели с thinking иногда пишут рассуждение и при think: false — его вырезаем, а пока оно не
+// Модели с thinking иногда пишут рассуждение и при enable_thinking: false — его вырезаем, а пока оно не
 // закрыто (ответ ещё идёт), не показываем и начатое.
 function withoutThinking(content) {
   return stripThinking(content).replace(/<think>[\s\S]*$/i, "");
 }
 
-// Сначала загружаем модель с настройками Ollama и узнаём реальное окно для бюджета текста.
+// Сначала загружаем модель с настройками llama.cpp и узнаём реальное окно для бюджета текста.
 // Сервер и модель фиксируем на всю операцию, включая промежуточные запросы.
 async function prepareJob(job, model) {
   const settings = await getSettings();
   model ||= settings.model;
-  if (!model) throw new OllamaError(ErrorCode.MODEL_NOT_FOUND, "No model selected in the popup");
-  job.ollamaUrl = settings.ollamaUrl;
+  if (!model) throw new LlamaError(ErrorCode.MODEL_NOT_FOUND, "No model selected in the popup");
+  job.llamaUrl = settings.llamaUrl;
   job.queued = 1;
   safePost(job.port, { type: "progress", step: "context" });
   const numCtx = await withPrioritySlot(
-    { signal: job.controller.signal, model, ollamaUrl: job.ollamaUrl },
+    { signal: job.controller.signal, model, llamaUrl: job.llamaUrl },
     (ctx) => ctx.numCtx,
   );
   safePost(job.port, { type: "context", context: { total: numCtx, usage: null } });
   if (job.dialogue) reportDialogue(job, { total: numCtx, usage: null });
   if (!numCtx) {
-    throw new OllamaError(ErrorCode.BAD_RESPONSE,
-      "Ollama did not report the loaded model's context length. Update Ollama and try again.");
+    throw new LlamaError(ErrorCode.BAD_RESPONSE,
+      "llama.cpp did not report the model's context length in /props. Check the server address and loaded model.");
   }
   if (numCtx < 2048) {
-    throw new OllamaError(ErrorCode.BAD_RESPONSE,
-      "Summaries and questions need at least 2048 context tokens. Increase context length in Ollama.");
+    throw new LlamaError(ErrorCode.BAD_RESPONSE,
+      "Summaries and questions need at least 2048 context tokens. Increase context length in llama.cpp.");
   }
   return { ...settings, model, numCtx };
 }
@@ -275,14 +275,14 @@ function fitHistory(job, past, max, { stage = "answer", web = false } = {}) {
 }
 
 // Каждый запрос — со своим слотом: между частями длинного текста успевает перевод выделенного.
-// numCtx — окно, под которое уже посчитан бюджет, а не параметр запроса к Ollama.
-// onContent, onThinking — см. chat в lib/ollama.js. И onContent, и в ответе
+// numCtx — окно, под которое уже посчитан бюджет, а не параметр запроса к llama.cpp.
+// onContent, onThinking — см. chat в lib/llama.js. И onContent, и в ответе
 // content — без рассуждения. → { content, thinking, doneReason }
 function ask(job, build, { numCtx, model, onContent, onThinking } = {}) {
-  return withPrioritySlot({ signal: job.controller.signal, model, ollamaUrl: job.ollamaUrl }, async (ctx) => {
+  return withPrioritySlot({ signal: job.controller.signal, model, llamaUrl: job.llamaUrl }, async (ctx) => {
     if (numCtx && (!ctx.numCtx || ctx.numCtx < numCtx)) {
-      throw new OllamaError(ErrorCode.BAD_RESPONSE,
-        "Ollama's context length changed while reading the text. Try again to resize the text and history.");
+      throw new LlamaError(ErrorCode.BAD_RESPONSE,
+        "llama.cpp's context length changed while reading the text. Try again to resize the text and history.");
     }
     if (!job.dialogue) safePost(job.port, { type: "context", context: { total: ctx.numCtx, usage: null } });
     const res = await chatWithRetry(build(ctx), ctx, {
@@ -362,7 +362,7 @@ async function mergeNotes(job, text, { title, lang, kind, budget, numCtx, model 
 // Длинный текст → заметки по частям, сведённые так, чтобы влезли в один запрос. fresh — не брать
 // заметки из кэша, см. notesEntry.
 async function notesOf(job, text, { title, lang, kind, budget, numCtx, model, fresh }) {
-  const key = `${job.ollamaUrl}|${model}|${lang}|${kind}|summary|${budget}|${text}`;
+  const key = `${job.llamaUrl}|${model}|${lang}|${kind}|summary|${budget}|${text}`;
   const { entry, parts } = await notesEntry(key, text, budget, fresh);
   if (entry.merged !== null) return entry.merged;
   const { notes } = entry;
@@ -437,14 +437,14 @@ async function complete(job, build, { numCtx, model, run }) {
         },
       });
     }
-    // пусто и обрезано — модель упёрлась в num_ctx, ещё рассуждая
+    // пусто и обрезано — модель упёрлась в n_ctx, ещё рассуждая
     if (!content.trim()) {
       const message = !cut
         ? "the model returned an empty response"
         : thinking
-          ? "the model reached a length limit while reasoning; check context length in Ollama"
-          : "response cut off: the model reached a length limit; check context length in Ollama";
-      throw new OllamaError(ErrorCode.BAD_RESPONSE, message);
+          ? "the model reached a length limit while reasoning; check context length in llama.cpp"
+          : "response cut off: the model reached a length limit; check context length in llama.cpp";
+      throw new LlamaError(ErrorCode.BAD_RESPONSE, message);
     }
     const text = content.trim();
     const result = { text, cut, context, ...(sources ? { sources, webLimited } : {}) };
@@ -525,7 +525,7 @@ async function answer(job, { text, title, kind, question, summary, history }) {
     : null;
   // выписок нет, но не потому, что части ответили NONE, — «на странице этого нет» было бы неправдой
   if (found && !found.text && found.missed) {
-    throw new OllamaError(
+    throw new LlamaError(
       ErrorCode.BAD_RESPONSE,
       "the model extracted nothing from the parts of the text: it kept hitting the response " +
         "length limit, apparently while reasoning",
@@ -547,14 +547,14 @@ async function answer(job, { text, title, kind, question, summary, history }) {
 // Свободный разговор: длинный текст — через общие с кратким содержанием заметки, короткий —
 // целиком. Поиск выписок к вопросу здесь не нужен: вопрос может быть вообще не по тексту.
 async function converse(job, { text, title, kind, question, summary, history }) {
-  const { numCtx, targetLang: lang, model, ollamaUrl } = await prepareJob(job);
+  const { numCtx, targetLang: lang, model } = await prepareJob(job);
   const { summaryWebEnabled: web, summarySearxngUrl } = await getWebSettings();
   safePost(job.port, { type: "web-status", enabled: web });
   if (web) {
     job.queued = 1;
-    await checkWebAccess({ searxngUrl: summarySearxngUrl, numCtx, ollamaUrl, model, signal: job.controller.signal });
+    await checkWebAccess({ searxngUrl: summarySearxngUrl, numCtx, model });
   }
-  // Веб-результатам и схемам инструментов оставляем отдельное место в том же num_ctx.
+  // Веб-результатам и схемам инструментов оставляем отдельное место в том же n_ctx.
   const budget = web ? Math.floor(inputChars(numCtx) * 0.28) : inputChars(numCtx);
   const used = cutText(text, MAX_CHARS);
   safePost(job.port, { type: "source", used: used.length, total: text.length, model });
@@ -614,7 +614,7 @@ async function clickbait(job, { text, title, length, summary, model: summaryMode
     { numCtx, model },
   );
   const verdict = clickbaitOf(content);
-  if (!verdict) throw new OllamaError(ErrorCode.BAD_RESPONSE, "the model's response didn't match the schema");
+  if (!verdict) throw new LlamaError(ErrorCode.BAD_RESPONSE, "the model's response didn't match the schema");
   const reason = [verdict.claim, verdict.delivered].filter(Boolean).join("\n");
   console.debug(`[ot] кликбейт «${title}»: ${verdict.clickbait ? "да" : "нет"}\n${reason}`);
   return { clickbait: verdict.clickbait, reason };
@@ -704,7 +704,7 @@ chrome.runtime.onConnect.addListener((port) => {
       .then(
         (result) => safePost(port, { type: "result", ...result }),
         (e) => {
-          const err = toOllamaError(e);
+          const err = toLlamaError(e);
           if (err.code !== ErrorCode.ABORTED) {
             safePost(port, { type: "error", code: err.code, message: err.message });
           }

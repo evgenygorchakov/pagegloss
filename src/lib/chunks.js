@@ -1,8 +1,8 @@
-// Общий бюджет текста под num_ctx: части, история и результаты поиска.
+// Общий бюджет текста под n_ctx: части, история и результаты поиска.
 
 // Промпт, заголовок и служебные токены чата.
 const PROMPT_TOKENS = 512;
-// Место под ответ: подробное краткое содержание — до ~1500 токенов; при маленьком num_ctx —
+// Место под ответ: подробное краткое содержание — до ~1500 токенов; при маленьком n_ctx —
 // четверть контекста.
 const ANSWER_TOKENS = 2048;
 // С запасом: у gemma4 и qwen3.8 английский текст — около 5 символов на токен, русский — около
@@ -13,7 +13,7 @@ function answerTokens(numCtx) {
   return Math.min(ANSWER_TOKENS, numCtx / 4);
 }
 
-// → сколько символов текста влезает в один запрос с этим num_ctx
+// → сколько символов текста влезает в один запрос с этим n_ctx
 export function inputChars(numCtx) {
   return Math.floor((numCtx - PROMPT_TOKENS - answerTokens(numCtx)) * CHARS_PER_TOKEN);
 }
@@ -25,7 +25,7 @@ export function historyChars(numCtx) {
   return Math.floor((answerTokens(numCtx) / 2) * CHARS_PER_TOKEN);
 }
 
-// Выписка к вопросу из одной части длинного текста — не длиннее этого (num_predict): половина
+// Выписка к вопросу из одной части длинного текста — не длиннее этого (max_tokens): половина
 // места под ответ, другую занимает история (historyChars). Выписки всех частей вместе потом
 // сводятся к месту под текст — fitExcerpts.
 export function excerptTokens(numCtx) {

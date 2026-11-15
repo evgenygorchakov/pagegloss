@@ -23,7 +23,7 @@
   const MIN_CHARS = 200;
   const MAX_QUESTION = 1000;
   const MARGIN = 8;
-  const CUT_NOTE = "Response cut off: the model reached a length limit. Check context length in Ollama.";
+  const CUT_NOTE = "Response cut off: the model reached a length limit. Check context length in llama.cpp.";
 
   // Надписи по source.kind из open(). loading, noCaptions и live — только у видео. title —
   // заголовок краткого содержания, questions — панели без режима.
@@ -243,7 +243,7 @@
     renderDialogue(composer);
   }
 
-  // status — что идёт сейчас («Пишу…»); у готового ответа cut — он упёрся в num_ctx, thinkMs —
+  // status — что идёт сейчас («Пишу…»); у готового ответа cut — он упёрся в n_ctx, thinkMs —
   // сколько модель рассуждала.
   function renderFoot(status = "", { cut = false, thinkMs } = {}) {
     const { foot, sent, words } = current;
@@ -364,7 +364,7 @@
 
   function request(mode) {
     const state = current;
-    stopPort(); // отключение порта отменяет прежний запрос к Ollama
+    stopPort(); // отключение порта отменяет прежний запрос к llama.cpp
     setMode(mode);
     if (!state.source) {
       loadTranscript(state); // ответ панели — когда загрузятся
@@ -592,8 +592,8 @@
   // Название видео — на кликбейт, после готового краткого содержания длины length: ту модель,
   // что его написала, спрашивают вдогонку к нему. Один раз на панель; не получилось — плашки
   // нет, проверка повторится после следующего готового краткого содержания. После обрезанного
-  // (упёрлось в num_ctx) не проверяем: вопрос вдогонку не влезет, и Ollama выкинет из запроса
-  // сообщение с названием и текстом. Название из одних пробелов фон не проверяет и не отвечает —
+  // (упёрлось в n_ctx) не проверяем: вопрос вдогонку может не поместиться в контекст.
+  // Название из одних пробелов фон не проверяет и не отвечает —
   // порт висел бы до закрытия панели.
   function checkTitle(length) {
     const state = current;

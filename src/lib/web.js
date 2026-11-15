@@ -1,5 +1,5 @@
 // Общий веб-поиск для диалогов через заданный пользователем SearXNG.
-import { ErrorCode, OllamaError, abortedError, showModel } from "./ollama.js";
+import { ErrorCode, LlamaError, abortedError } from "./llama.js";
 import { cutText, fitExcerpts, inputChars } from "./chunks.js";
 import { searchWeb } from "./searxng.js";
 import { parseSearxngUrl } from "./web-settings.js";
@@ -24,23 +24,21 @@ const TOOLS = [
 ];
 
 function failure(message) {
-  return new OllamaError(ErrorCode.BAD_RESPONSE, message);
+  return new LlamaError(ErrorCode.BAD_RESPONSE, message);
 }
 
-export async function checkWebAccess({ searxngUrl, numCtx, ollamaUrl, model, signal }) {
+export async function checkWebAccess({ searxngUrl, numCtx, model }) {
   const url = parseSearxngUrl(searxngUrl);
   if (!url) throw failure("Enter a valid SearXNG base URL in Settings.");
   if (!(await chrome.permissions.contains({ origins: [`${url.origin}/*`] }))) {
     throw failure(`Allow access to SearXNG at ${url.origin} by saving the web search settings again.`);
   }
   if (!Number.isSafeInteger(numCtx) || numCtx < 8192) {
-    throw failure("Automatic web search needs at least 8192 context tokens. Increase context length in Ollama.");
+    throw failure("Automatic web search needs at least 8192 context tokens. Increase context length in llama.cpp.");
   }
-  if (!model) throw new OllamaError(ErrorCode.MODEL_NOT_FOUND, "No model selected in the popup");
-  const { capabilities } = await showModel(ollamaUrl, model, { signal });
-  if (!capabilities.includes("tools")) {
-    throw failure("This model does not support tools. Choose a model with tool support or disable automatic web search in Settings.");
-  }
+  if (!model) throw new LlamaError(ErrorCode.MODEL_NOT_FOUND, "No model selected in the popup");
+  // llama.cpp поддерживает native и generic tool calling. Нативные возможности шаблона
+  // не определяют поддержку generic fallback; ошибки запроса показывает сам сервер.
 }
 
 export function publicWebUrl(value) {
@@ -75,17 +73,17 @@ function argumentsOf(call) {
 // Метаданные вызовов сохраняем целиком. Текст результатов и рассуждений делит оставшийся
 // бюджет: после нескольких раундов старые результаты не вытесняют вопрос и ответ.
 function fitMessages(messages, budget, onTrim) {
-  const fixed = JSON.stringify(messages.map(({ content, thinking, ...rest }) => rest)).length;
+  const fixed = JSON.stringify(messages.map(({ content, reasoning_content, ...rest }) => rest)).length;
   if (fixed > budget / 2) {
-    throw failure("Web tool arguments filled the context. Try a more focused question or increase context length in Ollama.");
+    throw failure("Web tool arguments filled the context. Try a more focused question or increase context length in llama.cpp.");
   }
-  const strings = messages.flatMap((message) => [message.content ?? "", message.thinking ?? ""]);
+  const strings = messages.flatMap((message) => [message.content ?? "", message.reasoning_content ?? ""]);
   const fitted = fitExcerpts(strings, Math.max(0, budget - fixed));
   if (fitted.some((text, i) => text.length < strings[i].length)) onTrim();
   return messages.map((message, i) => ({
     ...message,
     content: fitted[2 * i],
-    ...(message.thinking ? { thinking: fitted[2 * i + 1] } : {}),
+    ...(message.reasoning_content ? { reasoning_content: fitted[2 * i + 1] } : {}),
   }));
 }
 
@@ -147,7 +145,7 @@ export async function webChat({ build, ask, searxngUrl, numCtx, signal, onProgre
       const base = build(ctx);
       return {
         ...base,
-        options: { ...base.options, num_predict: Math.min(2048, Math.floor(numCtx / 4)) },
+        max_tokens: Math.min(2048, Math.floor(numCtx / 4)),
         ...(!finished ? { tools: TOOLS } : {}),
         messages: [
           ...base.messages,
@@ -164,7 +162,7 @@ export async function webChat({ build, ask, searxngUrl, numCtx, signal, onProgre
       };
     }
     if (result.doneReason === "length") {
-      throw failure("The model reached a length limit while requesting web tools. Try a more focused question or check context length in Ollama.");
+      throw failure("The model reached a length limit while requesting web tools. Try a more focused question or check context length in llama.cpp.");
     }
     if (finished || result.toolCalls.length > MAX_CALLS) {
       throw failure("The model exceeded the web search limit. Try a more focused question.");
@@ -182,7 +180,7 @@ export async function webChat({ build, ask, searxngUrl, numCtx, signal, onProgre
         ? "Web tool limit reached. Answer with the evidence already obtained."
         : await execute(call);
       calls++;
-      messages.push({ role: "tool", tool_name: call.function.name, content });
+      messages.push({ role: "tool", tool_call_id: call.id, content });
     }
   }
 }

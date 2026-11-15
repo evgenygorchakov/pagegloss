@@ -2,8 +2,8 @@
 // всплывашки (bubble.js) и порт "translate-selection", по которому она просит перевод.
 // От перевода страницы не зависит.
 
-import { ErrorCode, OllamaError } from "../lib/ollama.js";
-import { toOllamaError, translateOne } from "../lib/translate.js";
+import { ErrorCode, LlamaError } from "../lib/llama.js";
+import { toLlamaError, translateOne } from "../lib/translate.js";
 import { withPrioritySlot } from "../lib/priority.js";
 import { onPortClosed, safePost } from "../lib/port.js";
 import { ensureMenu } from "../lib/menus.js";
@@ -18,7 +18,7 @@ const BUBBLE_SCRIPTS = [
   "src/shared/clipboard.js",
   "src/selection/bubble.js",
 ];
-// Длиннее модель переводит минутами, а в num_ctx может и не влезть. Лимит передаём всплывашке:
+// Длиннее модель переводит минутами, а в n_ctx может и не влезть. Лимит передаём всплывашке:
 // она проверяет его до запроса и объясняет пользователю; здесь — на всякий случай.
 const MAX_CHARS = 5000;
 
@@ -75,13 +75,13 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
 async function translate(text, signal) {
   if (text.length > MAX_CHARS) {
-    throw new OllamaError(ErrorCode.TEXT_TOO_LONG, `Text is longer than ${MAX_CHARS} characters`);
+    throw new LlamaError(ErrorCode.TEXT_TOO_LONG, `Text is longer than ${MAX_CHARS} characters`);
   }
   // общий с переводом страницы лимит запросов; встаём перед её очередью
   const r = await withPrioritySlot({ signal }, (ctx) =>
     translateOne(text, ctx, { acceptUnchanged: true }),
   );
-  if (r.error) throw new OllamaError(r.error.code, r.error.message);
+  if (r.error) throw new LlamaError(r.error.code, r.error.message);
   return r.text;
 }
 
@@ -96,7 +96,7 @@ onStop(() => {
   }
 });
 
-// Один порт — один перевод. Всплывашку закрыли — порт отключился — запрос к Ollama отменён.
+// Один порт — один перевод. Всплывашку закрыли — порт отключился — запрос к llama.cpp отменён.
 // Пока порт открыт, всплывашка шлёт ping, чтобы service worker не уснул на долгом ответе.
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== PORT_NAME) return;
@@ -111,7 +111,7 @@ chrome.runtime.onConnect.addListener((port) => {
     translate(msg.text, controller.signal).then(
       (text) => safePost(port, { type: "result", text }),
       (e) => {
-        const err = toOllamaError(e);
+        const err = toLlamaError(e);
         if (err.code !== ErrorCode.ABORTED) {
           safePost(port, { type: "error", code: err.code, message: err.message });
         }

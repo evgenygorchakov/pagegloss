@@ -2,8 +2,8 @@
 // батчей, включение перевода на вкладке из popup, хоткея и контекстного меню.
 
 import { getSettings } from "../lib/settings.js";
-import { ErrorCode, abortedError } from "../lib/ollama.js";
-import { createContext, toOllamaError, translateTexts } from "../lib/translate.js";
+import { ErrorCode, abortedError } from "../lib/llama.js";
+import { createContext, toLlamaError, translateTexts } from "../lib/translate.js";
 import { takeBatch } from "../lib/batcher.js";
 import { getPageState } from "../lib/tabs.js";
 import { onSlotFree, onWait, release, tryAcquire, waiting } from "../lib/slots.js";
@@ -29,7 +29,7 @@ const CONTENT_CSS = ["src/page/content.css"];
 
 // После этих ошибок остальная очередь вкладки обречена — сбрасываем её сразу.
 const FATAL_CODES = new Set([
-  ErrorCode.OLLAMA_DOWN,
+  ErrorCode.LLAMA_DOWN,
   ErrorCode.FORBIDDEN_ORIGIN,
   ErrorCode.MODEL_NOT_FOUND,
 ]);
@@ -144,7 +144,7 @@ async function runBatch(client, items, settings) {
   const results = new Array(items.length);
   client.controllers.add(controller);
   running.set(controller, batch);
-  markModelUsed(settings.ollamaUrl, settings.model);
+  markModelUsed(settings.llamaUrl, settings.model);
   try {
     let err = null;
     try {
@@ -166,7 +166,7 @@ async function runBatch(client, items, settings) {
         results,
       );
     } catch (e) {
-      err = toOllamaError(e);
+      err = toLlamaError(e);
     }
     // вкладку за это время могли закрыть или отменить на ней перевод
     const current = !client.closed && batch.generation === client.generation;

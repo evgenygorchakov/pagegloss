@@ -1,4 +1,4 @@
-// Промпты и тела запросов к /api/chat.
+// Промпты и тела запросов к /v1/chat/completions.
 
 import { languageName } from "./languages.js";
 import "./tags.js"; // обычный скрипт, см. в нём
@@ -45,7 +45,7 @@ export function settingsPrompts({ targetLang, systemPrompt }) {
   };
 }
 
-// minItems/maxItems Ollama превращает в грамматику — модель физически не может вернуть
+// minItems/maxItems llama.cpp превращает в грамматику — модель физически не может вернуть
 // другое число элементов (если не упрётся в лимит токенов).
 export function batchSchema(count) {
   return {
@@ -62,23 +62,23 @@ export function batchSchema(count) {
   };
 }
 
-// opts — контекст перевода: { model, prompts, temperature, disableThinking }.
+// opts — контекст перевода: { model, prompts, temperature }.
 // Общая часть тела запроса: модуль со своими запросами к модели добавляет к ней messages.
 export function baseRequest(opts) {
   return {
     model: opts.model,
-    keep_alive: "30m",
-    // think передаём только моделям с thinking: на остальных он может дать ошибку
-    ...(opts.disableThinking ? { think: false } : {}),
-    // Длиной контекста управляет Ollama, в запросах её не переопределяем.
-    options: { temperature: opts.temperature },
+    temperature: opts.temperature,
+    // Шаблоны без thinking игнорируют этот параметр. Контекст задаёт сервер.
+    chat_template_kwargs: { enable_thinking: false },
+    reasoning_effort: "none",
+    reasoning_format: "deepseek",
   };
 }
 
 export function buildBatchRequest(texts, opts) {
   return {
     ...baseRequest(opts),
-    format: batchSchema(texts.length),
+    response_format: { type: "json_schema", schema: batchSchema(texts.length) },
     messages: [
       { role: "system", content: withTagRules(opts.prompts.batch, texts) },
       { role: "user", content: JSON.stringify({ items: texts }) },

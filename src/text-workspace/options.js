@@ -57,7 +57,7 @@ palette.setAttribute("aria-describedby", colorHelp.id);
 palette.append(legend, swatches, colorHelp);
 const help = document.createElement("small");
 help.className = "help";
-help.textContent = "Applies immediately. Enabling asks for access to websites so the selection button can appear automatically. Uses the selected Ollama model and response language. No request is sent until you ask a question.";
+help.textContent = "Applies immediately. Enabling asks for access to websites so the selection button can appear automatically. Uses the selected llama.cpp model and response language. No request is sent until you ask a question.";
 const status = document.createElement("p");
 status.className = "status";
 status.setAttribute("role", "status");

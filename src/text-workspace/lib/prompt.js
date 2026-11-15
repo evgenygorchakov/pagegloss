@@ -1,6 +1,6 @@
 import { baseRequest } from "../../lib/prompt.js";
 import { languageName } from "../../lib/languages.js";
-import { ErrorCode, OllamaError } from "../../lib/ollama.js";
+import { ErrorCode, LlamaError } from "../../lib/llama.js";
 import { webAccessPrompt } from "../../lib/web-prompt.js";
 import { CONFIG } from "./settings.js";
 
@@ -13,8 +13,8 @@ function tokens(text) {
 export function buildRequest({ text, question, history, lang = "ru", web = false }, ctx) {
   const total = ctx.numCtx;
   if (!Number.isSafeInteger(total) || total < 2048) {
-    throw new OllamaError(ErrorCode.BAD_RESPONSE,
-      "Text workspace needs a known context of at least 2048 tokens. Check context length in Ollama.");
+    throw new LlamaError(ErrorCode.BAD_RESPONSE,
+      "Text workspace needs a known context of at least 2048 tokens. Check context length in llama.cpp.");
   }
   const language = languageName(lang);
   const system =
@@ -38,8 +38,8 @@ export function buildRequest({ text, question, history, lang = "ru", web = false
   const available = total - answerTokens - 256 - (web ? webBudget + 512 : 0) -
     tokens(system) - tokens(source) - tokens(request);
   if (available < 0) {
-    throw new OllamaError(ErrorCode.TEXT_TOO_LONG,
-      "The selection and question do not fit this model's context. Select less text, shorten the question, or increase context length in Ollama.");
+    throw new LlamaError(ErrorCode.TEXT_TOO_LONG,
+      "The selection and question do not fit this model's context. Select less text, shorten the question, or increase context length in llama.cpp.");
   }
   const turns = [];
   let used = 0;
@@ -54,7 +54,7 @@ export function buildRequest({ text, question, history, lang = "ru", web = false
   return {
     body: {
       ...base,
-      options: { ...base.options, num_predict: answerTokens },
+      max_tokens: answerTokens,
       messages: [
         { role: "system", content: system },
         { role: "user", content: source },
@@ -76,10 +76,10 @@ export function buildRequest({ text, question, history, lang = "ru", web = false
 export function readQuestion(msg) {
   if (typeof msg.text !== "string" || !msg.text.trim() ||
       typeof msg.question !== "string" || !msg.question.trim()) {
-    throw new OllamaError(ErrorCode.BAD_RESPONSE, "Select text and enter a question first.");
+    throw new LlamaError(ErrorCode.BAD_RESPONSE, "Select text and enter a question first.");
   }
   if (msg.text.length > CONFIG.maxText || msg.question.length > CONFIG.maxQuestion) {
-    throw new OllamaError(ErrorCode.TEXT_TOO_LONG,
+    throw new LlamaError(ErrorCode.TEXT_TOO_LONG,
       `Select up to ${CONFIG.maxText.toLocaleString("en-US")} characters and ask a question of up to ${CONFIG.maxQuestion.toLocaleString("en-US")} characters.`);
   }
   const history = Array.isArray(msg.history) ? msg.history : [];
@@ -87,7 +87,7 @@ export function readQuestion(msg) {
     typeof turn?.question !== "string" || typeof turn?.answer !== "string" ||
     turn.question.length > CONFIG.maxQuestion) ||
     history.reduce((sum, turn) => sum + turn.question.length + turn.answer.length, 0) > CONFIG.maxHistoryChars) {
-    throw new OllamaError(ErrorCode.BAD_RESPONSE, "Conversation is too long. Use Reset to start again.");
+    throw new LlamaError(ErrorCode.BAD_RESPONSE, "Conversation is too long. Use Reset to start again.");
   }
   return { text: msg.text.trim(), question: msg.question.trim(), history };
 }

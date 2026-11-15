@@ -1,4 +1,4 @@
-// Промпты краткого содержания и тела запросов к /api/chat. Язык — targetLang из настроек;
+// Промпты краткого содержания и тела запросов к /v1/chat/completions. Язык — targetLang из настроек;
 // свой промпт перевода (systemPrompt) сюда не относится. kind — о чём текст: "page" — страница
 // или выделенное на ней, "video" — расшифровка речи видео из субтитров.
 // Длинный текст модель читает по частям: заметки по каждой (buildNotesRequest), если их много —
@@ -185,7 +185,7 @@ function chatRequest(system, turns, question, ctx) {
 }
 
 // Вопрос по тексту. Текст — в системном промпте, прошлые вопросы — после него: начало запроса от
-// вопроса к вопросу одно и то же, и Ollama не разбирает текст заново. fromExcerpts — text это
+// вопроса к вопросу одно и то же, и llama.cpp не разбирает текст заново. fromExcerpts — text это
 // выписки к этому вопросу из частей длинного текста (buildSearchRequest), "" — ничего не нашлось.
 export function buildAnswerRequest(
   { text, title, question, turns, lang, kind, fromExcerpts = false },
@@ -235,7 +235,7 @@ export function buildChatRequest(
 
 // Длинный текст: из одной его части (part — с единицы) выписать то, что относится к вопросу.
 // turns — как у buildAnswerRequest: по ним понятен вопрос вроде «а подробнее?». maxTokens —
-// предел длины выписки (num_predict). Ничего не нашлось — модель отвечает NONE, см. excerptOf.
+// предел длины выписки (max_tokens). Ничего не нашлось — модель отвечает NONE, см. excerptOf.
 export function buildSearchRequest(
   { text, title, part, parts, question, turns, maxTokens, kind },
   ctx,
@@ -255,7 +255,7 @@ export function buildSearchRequest(
     `${question}\n\n(Copy out what in this part of ${s.the} helps answer this, or reply NONE.)`,
     ctx,
   );
-  return { ...req, options: { ...req.options, num_predict: maxTokens } };
+  return { ...req, max_tokens: maxTokens };
 }
 
 // Ответ на buildSearchRequest → выписка; "" — в части ничего не нашлось. Вокруг NONE бывают
@@ -299,14 +299,14 @@ function clickbaitQuestion(name) {
 }
 
 // Кликбейт ли название видео — продолжение запроса краткого содержания (buildSummaryRequest с
-// теми же параметрами): начало запроса то же, и Ollama не разбирает текст заново. summary —
+// теми же параметрами): начало запроса то же, и llama.cpp не разбирает текст заново. summary —
 // краткое содержание, которое модель на него написала.
 export function buildClickbaitRequest({ text, title, length, lang, fromNotes, summary }, ctx) {
   const req = buildSummaryRequest({ text, title, length, lang, kind: "video", fromNotes }, ctx);
   return {
     ...req,
-    format: CLICKBAIT_SCHEMA,
-    options: { ...req.options, num_predict: CLICKBAIT_TOKENS },
+    response_format: { type: "json_schema", schema: CLICKBAIT_SCHEMA },
+    max_tokens: CLICKBAIT_TOKENS,
     messages: [
       ...req.messages,
       { role: "assistant", content: summary },

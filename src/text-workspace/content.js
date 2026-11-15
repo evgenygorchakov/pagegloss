@@ -307,7 +307,7 @@
           } else if (msg?.type === "result") {
             finish(state);
             pending.answer.textContent = msg.text;
-            pending.label.textContent = msg.cut ? "Answer reached the length limit" : "Ollama";
+            pending.label.textContent = msg.cut ? "Answer reached the length limit" : "llama.cpp";
             renderSources(pending, Array.isArray(msg.sources) ? msg.sources : []);
             pending.notes.textContent = [
               msg.webLimited && "Web search limit reached; answer uses the information found so far.",

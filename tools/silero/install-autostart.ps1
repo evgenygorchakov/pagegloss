@@ -36,7 +36,7 @@ $trigger = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAM
 $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -Priority 5 `
     -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings `
-    -Description "Silero TTS для Ollama Translator: $serve" -Force | Out-Null
+    -Description "Silero TTS для PageGloss: $serve" -Force | Out-Null
 
 Stop-Server
 # Задача числится запущенной, пока не закроются её cmd и conhost, а запуск до этого

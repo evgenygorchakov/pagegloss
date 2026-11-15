@@ -9,7 +9,7 @@
     const ratio = Math.min(1, used / total);
     const percent = number.format(Math.round(used / total * 1000) / 10);
     const title = [
-      "Context length is managed in Ollama.",
+      "Context length is managed in llama.cpp.",
       `Last completed request: ${number.format(usage.input)} input + ${number.format(usage.output)} generated tokens (including thinking).`,
       "Includes the prompt and history actually sent. Independent requests are not added together.",
       used > total ? "This request processed more tokens than the window can retain." : "",
@@ -39,7 +39,7 @@
       pending: "Preparing / generating · exact usage after the final response.",
       stopped: "Stopped · no completed final response for this attempt.",
       error: "Request failed · retry is available.",
-      complete: state.usage ? "Last completed response · includes input, history and generated tokens." : "Ollama did not report token usage.",
+      complete: state.usage ? "Last completed response · includes input, history and generated tokens." : "llama.cpp did not report token usage.",
     }[status] ?? "";
     if (history) {
       const label = history.nextEstimate !== undefined ? "History for next turn" : "History to send";

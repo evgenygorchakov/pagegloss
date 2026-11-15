@@ -3,7 +3,7 @@
 Translate web pages, summarize articles and ask questions about what you read without
 leaving your browser. PageGloss is a Chrome and Firefox extension for working with web
 content using models you run on your own computer. It currently connects through
-[Ollama](https://ollama.com), so you can work with text locally and choose your model.
+[llama.cpp / Llama app](https://llama.app), so you can work with text locally and choose your model.
 
 - **Translate in place.** Read pages in any of 14 target languages, hover to see the original,
   or translate just the text you select. Russian is the default.
@@ -33,8 +33,8 @@ Example result: "Встреча начинается в полдень."
 
 ## Get started
 
-You need **Chrome 127+ or Firefox 140+**, [Ollama](https://ollama.com/download), and a
-downloaded model. The instructions below cover Windows and Linux.
+You need **Chrome 127+ or Firefox 140+**, [Llama app](https://llama.app/docs/installation),
+and a downloaded model. On Windows 11, run both the app and the browser in Windows.
 
 ### 1. Download the extension
 
@@ -49,44 +49,27 @@ Alternatively, choose **Code → Download ZIP** on the
 [repository page](https://github.com/evgenygorchakov/pagegloss) and extract it.
 Keep this folder: the browser loads the extension directly from it.
 
-### 2. Prepare Ollama
+### 2. Prepare Llama app
 
-Install and start [Ollama](https://ollama.com/download). Allow requests from browser
-extensions using the instructions for your operating system below.
+Install and start [Llama app](https://llama.app/docs/installation) in Windows 11. Open its
+system tray menu, download a model, choose its context window and start **Chat with the
+model**. See the [app quickstart](https://llama.app/docs/quickstart).
 
-**Windows — PowerShell:**
+The default server address is `http://127.0.0.1:9931`. When the browser and app run in
+Windows, this address points directly to the Windows server, even if you edit the extension
+in WSL. No WSL IP address or port forwarding is needed.
+
+If you prefer a terminal, Llama app also installs the `llama` command. Start a server with
+a local model in PowerShell (replace the path with your GGUF file):
 
 ```powershell
-setx OLLAMA_ORIGINS "chrome-extension://*,moz-extension://*"
+llama serve -m "C:\Models\model.gguf" --port 9931 -c 8192
 ```
 
-Quit Ollama from the system tray, then start it again from the Start menu.
-
-**Linux — Ollama installed as a systemd service:**
-
-```sh
-sudo mkdir -p /etc/systemd/system/ollama.service.d
-printf '[Service]\nEnvironment="OLLAMA_ORIGINS=chrome-extension://*,moz-extension://*"\n' | sudo tee /etc/systemd/system/ollama.service.d/origins.conf
-sudo systemctl daemon-reload
-sudo systemctl restart ollama
-```
-
-If you run Ollama manually instead of as a service, start it in a separate terminal with:
-
-```sh
-OLLAMA_ORIGINS='chrome-extension://*,moz-extension://*' ollama serve
-```
-
-See [Ollama's server configuration guide](https://docs.ollama.com/faq#how-do-i-configure-ollama-server)
-for other installation methods.
-
-Download a model, for example [Gemma 4](https://ollama.com/library/gemma4), or use one you
-already have. Run these commands in a terminal; model downloads can be several gigabytes:
-
-```sh
-ollama pull gemma4
-ollama list
-```
+Keep that terminal open. On Linux, use the same command with your model's Linux path.
+A server started without `-m` runs in router mode and can load cached models on demand.
+PageGloss supports both modes through the [llama.cpp API](https://llama.app/docs/api).
+The local server should run without `--api-key`; PageGloss does not send an API key.
 
 ### 3. Load the extension and translate a page
 
@@ -96,7 +79,7 @@ ollama list
 | Firefox | Open `about:debugging`, choose **This Firefox → Load Temporary Add-on**, and select `manifest.json`. Load it again after restarting Firefox. |
 
 1. Open an ordinary web page, such as an article, and click the extension icon.
-2. Wait for the Ollama status to show **OK**, then select your model. On first connection,
+2. Wait for the llama.cpp status to show **OK**, then select your model. On first connection,
    the popup selects the first available model alphabetically; changing it saves immediately.
 3. Open **Settings**. Choose your **Translation language** if you want something other than
    Russian, then press **Save**. Web search is off by default, so SearXNG is not needed
@@ -104,9 +87,14 @@ ollama list
 4. Return to the article, open the extension popup and click **Translate page**. Text is
    translated as you scroll. Click **Show original** to restore it.
 
-The default Ollama address is `http://127.0.0.1:11434`. If your server is elsewhere, change
-**Ollama address** in Settings, press **Check**, then **Save**, and grant access when asked.
-The address must be reachable from the machine running the browser.
+The default llama.cpp address is `http://127.0.0.1:9931`. If your server is elsewhere, change
+**llama.cpp address** in Settings, press **Check**, then **Save**, and grant access when asked.
+The address must be reachable from the machine running the browser. A trailing `/v1` is
+accepted and normalized automatically.
+
+Upgrading from the Ollama version resets only the server address and selected model.
+Your language, prompts, appearance, Silero and SearXNG settings stay saved. Reload the
+extension and open its popup to select a model from Llama app.
 
 ---
 
@@ -120,11 +108,12 @@ The address must be reachable from the machine running the browser.
 | Ask about an article | Click **Ask**, then use **Ask about the page…**. This mode uses only the source text. |
 | Ask a broader question | Use **Ask freely…**. It can use the model's knowledge and, when configured, web search. |
 | Start fresh | Use **Reset** in a panel, or **Reset context** in the popup to clear conversations across open panels. |
-| Stop model work | Click **Stop** in the popup or press **Alt+Shift+S** to cancel model requests and unload the model. |
+| Stop model work | Click **Stop** in the popup or press **Alt+Shift+S** to cancel model requests and unload the model in router mode. |
 
 The two question fields keep separate histories and use your selected model and response
 language. See the [detailed guide](docs/usage.md) for conversation controls, limits and
-context usage.
+context usage. A standalone server keeps its model loaded after Stop; stop it in Llama app
+or close its server process to free memory.
 
 ## Optional features
 
@@ -141,7 +130,7 @@ panel. [Controls, appearance and limits →](docs/usage.md#text-workspace)
 ### Web search: add current information
 
 Connect a [SearXNG](https://docs.searxng.org/) server with its JSON API enabled, choose a
-model with tool support, and set at least **8192 context tokens** in Ollama. In Settings,
+model with tool support, and set at least **8192 context tokens** in llama.cpp. In Settings,
 enter the SearXNG address, enable automatic search, press **Save** and grant access.
 The extension checks SearXNG before saving; if the check fails, the previous settings stay
 in effect. **Check** lets you test the server without enabling search.
@@ -151,7 +140,7 @@ if you no longer run SearXNG.
 
 Search is available in **Ask freely** and **Text workspace**. The model decides when to
 search and includes numbered sources. Queries go to SearXNG and its search engines;
-answers use your selected Ollama model. [SearXNG configuration →](docs/usage.md#web-search)
+answers use your selected llama.cpp model. [SearXNG configuration →](docs/usage.md#web-search)
 
 ### YouTube dubbing: listen in Russian
 
@@ -167,11 +156,11 @@ Russian subtitles in the menu beside the player's Translate button.
 
 | Symptom | What to check |
 | --- | --- |
-| Ollama is unavailable | Start Ollama, check its address in Settings, then press **⟳** in the popup. With WSL or Docker, use an address reachable from the browser. |
-| Ollama rejects extension requests | Set `OLLAMA_ORIGINS` as shown above and fully restart Ollama. |
-| No models, or the saved model is missing | Run `ollama list`, download a model if needed, then select an available model in the popup. A saved choice is not silently replaced. |
+| llama.cpp is unavailable | Start the model’s chat/server in Llama app, check the address in Settings, then press **⟳**. With both app and browser in Windows, use `http://127.0.0.1:9931`. |
+| llama.cpp rejects extension requests (HTTP 403) | Settings shows this extension’s exact origin. Allow it with the server’s `--cors-origins` option and restart the server. See [server configuration](https://github.com/ggml-org/llama.cpp/tree/master/tools/server#readme). |
+| No models, or the saved model is missing | Download and serve a model in Llama app, then select an available model in the popup. A saved llama.cpp choice is not silently replaced. |
 | Ask freely or Text workspace reports a search error | Disable automatic search if you do not use SearXNG; otherwise check its JSON API, browser permission, tool support and context size. |
-| A passage does not fit, or an answer is cut off | Select less text, reset the conversation, or increase context length in Ollama. [Context and limits →](docs/usage.md#context-length-and-usage) |
+| A passage does not fit, or an answer is cut off | Select less text, reset the conversation, or increase context length in llama.cpp. [Context and limits →](docs/usage.md#context-length-and-usage) |
 | Nothing opens on a browser settings page or PDF | Browser internal pages, extension stores and the built-in PDF viewer do not allow the injected panels. Try an ordinary web page. |
 | YouTube dubbing cannot start | Check that the video has captions and Silero is running. Use **Check** next to the Silero address in Settings. |
 

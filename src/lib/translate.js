@@ -1,7 +1,7 @@
 // Вызовы модели для перевода: ретраи, thinking, батч с делением пополам, одиночный запрос.
 // Общее для всех модулей; работает в service worker.
 
-import { ErrorCode, OllamaError, abortedError, chat, showModel } from "./ollama.js";
+import { ErrorCode, LlamaError, abortedError, chat } from "./llama.js";
 import { buildBatchRequest, buildSingleRequest, settingsPrompts } from "./prompt.js";
 import { isBadTranslation, parseBatch, parseSingle } from "./parse.js";
 import "./tags.js"; // обычный скрипт, см. в нём
@@ -10,31 +10,6 @@ import { loadModelContext, recordContextUsage } from "./model-context.js";
 const { hasTags, sameTags, closeTags } = globalThis.__ollamaTranslator.tags;
 
 const RETRY_DELAYS_MS = [1000, 3000];
-
-// Нужен ли think: false — зависит от модели; спрашиваем /api/show один раз.
-const thinkingCache = new Map();
-function modelHasThinking(baseUrl, model) {
-  const key = `${baseUrl}|${model}`;
-  if (!thinkingCache.has(key)) {
-    const promise = showModel(baseUrl, model).then(({ capabilities }) =>
-      capabilities.includes("thinking"),
-    );
-    promise.catch(() => thinkingCache.delete(key));
-    thinkingCache.set(key, promise);
-  }
-  return thinkingCache.get(key);
-}
-
-// Общий промис /api/show не отменяем — его могут ждать и другие запросы, — но отменённый
-// запрос перестаёт его ждать сразу и не держит слот.
-function abortable(promise, signal) {
-  return new Promise((resolve, reject) => {
-    const onAbort = () => reject(abortedError());
-    if (signal.aborted) return onAbort();
-    signal.addEventListener("abort", onAbort, { once: true });
-    promise.then(resolve, reject).finally(() => signal.removeEventListener("abort", onAbort));
-  });
-}
 
 function sleep(ms, signal) {
   return new Promise((resolve, reject) => {
@@ -54,24 +29,24 @@ function sleep(ms, signal) {
 
 function isRetryable(err) {
   return (
-    err.code === ErrorCode.OLLAMA_DOWN || (err.code === ErrorCode.BAD_RESPONSE && err.status >= 500)
+    err.code === ErrorCode.LLAMA_DOWN || (err.code === ErrorCode.BAD_RESPONSE && err.status >= 500)
   );
 }
 
 // before() — необязательный хук перед каждой попыткой. Если он бросил, повторов больше нет:
-// наружу идёт его ошибка, а если прошлая попытка упала с OLLAMA_DOWN — она (см. chatWithRetry).
+// наружу идёт его ошибка, а если прошлая попытка упала с LLAMA_DOWN — она (см. chatWithRetry).
 async function withRetry(fn, signal, before) {
   let lastErr = null;
   for (let attempt = 0; ; attempt++) {
     try {
       before?.();
     } catch (err) {
-      throw lastErr?.code === ErrorCode.OLLAMA_DOWN ? lastErr : err;
+      throw lastErr?.code === ErrorCode.LLAMA_DOWN ? lastErr : err;
     }
     try {
       return await fn();
     } catch (err) {
-      if (!(err instanceof OllamaError) || !isRetryable(err) || attempt >= RETRY_DELAYS_MS.length) {
+      if (!(err instanceof LlamaError) || !isRetryable(err) || attempt >= RETRY_DELAYS_MS.length) {
         throw err;
       }
       lastErr = err;
@@ -81,10 +56,10 @@ async function withRetry(fn, signal, before) {
   }
 }
 
-export function toOllamaError(err) {
-  if (err instanceof OllamaError) return err;
+export function toLlamaError(err) {
+  if (err instanceof LlamaError) return err;
   console.error(err);
-  return new OllamaError(ErrorCode.BAD_RESPONSE, String(err?.message ?? err));
+  return new LlamaError(ErrorCode.BAD_RESPONSE, String(err?.message ?? err));
 }
 
 // Контекст для translateOne/translateTexts: модель и её параметры — из настроек.
@@ -92,30 +67,25 @@ export function toOllamaError(err) {
 // для одиночного запроса без JSON; singleViaBatch — одиночный сначала пробовать батчем из одного
 // (см. translateOne). По умолчанию — промпты перевода страниц из настроек.
 export async function createContext(settings, signal, prompts = settingsPrompts(settings)) {
-  if (!settings.model) throw new OllamaError(ErrorCode.MODEL_NOT_FOUND, "No model selected in the popup");
+  if (!settings.model) throw new LlamaError(ErrorCode.MODEL_NOT_FOUND, "No model selected in the popup");
   return {
-    baseUrl: settings.ollamaUrl,
+    baseUrl: settings.llamaUrl,
     model: settings.model,
     temperature: settings.temperature,
-    // Только для бюджета текста и счётчика; в options.num_ctx это значение не отправляется.
+    // Только для бюджета текста и счётчика; серверу это значение не отправляется.
     numCtx: await withRetry(
-      () => loadModelContext(settings.ollamaUrl, settings.model, { signal }), signal,
+      () => loadModelContext(settings.llamaUrl, settings.model, { signal }), signal,
     ),
     prompts,
     signal,
-    // Ollama могла ещё не подняться — те же ретраи, что у chat
-    disableThinking: await withRetry(
-      () => abortable(modelHasThinking(settings.ollamaUrl, settings.model), signal),
-      signal,
-    ),
   };
 }
 
 // ctx.beforeRequest() — необязательный хук перед каждым запросом к модели, в том числе повтором:
 // может бросить, чтобы прервать перевод между запросами, не теряя ответ идущего.
-// Если перед повтором хук бросил, а Ollama недоступна, наружу идёт OLLAMA_DOWN: о ней важнее
+// Если перед повтором хук бросил, а llama.cpp недоступна, наружу идёт LLAMA_DOWN: о ней важнее
 // узнать сразу, чем уступить слот и перекладывать обречённые тексты.
-// onContent, onThinking — см. chat в ollama.js; после повтора ответ и рассуждение в них
+// onContent, onThinking — см. chat в llama.js; после повтора ответ и рассуждение в них
 // начинаются заново.
 export async function chatWithRetry(body, ctx, { onContent, onThinking } = {}) {
   const res = await withRetry(
@@ -156,13 +126,13 @@ function checked(original, translation, { acceptUnchanged = false, final = false
   return { text: translation };
 }
 
-// Упёрлись в num_ctx: обрезанный JSON батча не разберётся сам, а обрезанный текст — разберётся,
+// Упёрлись в n_ctx: обрезанный JSON батча не разберётся сам, а обрезанный текст — разберётся,
 // поэтому doneReason проверяем до разбора. Повтор с другим промптом тоже не влезет.
 function truncated() {
   return {
     error: {
       code: ErrorCode.BAD_RESPONSE,
-      message: "Translation cut off: the model reached a length limit. Check context length in Ollama.",
+      message: "Translation cut off: the model reached a length limit. Check context length in llama.cpp.",
     },
   };
 }
@@ -187,7 +157,7 @@ export async function translateOne(text, ctx, opts = {}) {
 }
 
 // → массив { text } | { error } той же длины, что texts. Если модель вернула не то число
-// элементов, битый JSON или упёрлась в num_ctx — делим батч пополам, одиночные переводим без
+// элементов, битый JSON или упёрлась в n_ctx — делим батч пополам, одиночные переводим без
 // JSON-формата. out заполняется по мере готовности: если запрос отменят, вызывающий заберёт
 // уже переведённое.
 export async function translateTexts(texts, ctx, out = new Array(texts.length)) {
@@ -202,7 +172,7 @@ async function translateRange(texts, from, to, ctx, out) {
   }
   const part = texts.slice(from, to);
   const { content, doneReason } = await chatWithRetry(buildBatchRequest(part, ctx), ctx);
-  // обрезанный по num_ctx JSON не разберётся; половине, скорее всего, хватит контекста
+  // обрезанный по n_ctx JSON не разберётся; половине, скорее всего, хватит контекста
   const translations = doneReason === "length" ? null : parseBatch(content, part.length);
   if (translations) {
     // пустой или непереведённый элемент батча переспрашиваем по одному, остальные готовы сразу
@@ -216,7 +186,7 @@ async function translateRange(texts, from, to, ctx, out) {
     return;
   }
   if (doneReason === "length") {
-    console.warn(`[ot] ответ на батч из ${part.length} обрезан по num_ctx, делю пополам`);
+    console.warn(`[ot] ответ на батч из ${part.length} обрезан по n_ctx, делю пополам`);
   } else {
     console.warn(`[ot] ответ на батч из ${part.length} не разобран, делю пополам`, content);
   }

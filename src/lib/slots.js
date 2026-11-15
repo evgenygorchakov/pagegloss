@@ -4,7 +4,7 @@
 // пользователь ждёт прямо сейчас, оно обгоняет очередь страницы, а через onWait перевод
 // страницы уступает ему и идущий батч.
 
-import { abortedError } from "./ollama.js";
+import { abortedError } from "./llama.js";
 import { keepAwake } from "./keepalive.js";
 
 let busy = 0;
@@ -36,7 +36,7 @@ export function tryAcquire(newLimit) {
   return true;
 }
 
-// Ждёт слот; при отмене signal — OllamaError ABORTED. После успеха — обязательно release().
+// Ждёт слот; при отмене signal — LlamaError ABORTED. После успеха — обязательно release().
 // → true, если слот пришлось ждать (за это время могли смениться настройки), иначе false.
 export function acquire(newLimit, signal) {
   if (signal.aborted) return Promise.reject(abortedError());

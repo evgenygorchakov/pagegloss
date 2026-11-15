@@ -3,9 +3,9 @@
 import { CONFIG, getWorkspaceSettings } from "./lib/settings.js";
 import { buildRequest, readQuestion } from "./lib/prompt.js";
 import { getSettings } from "../lib/settings.js";
-import { ErrorCode, OllamaError, abortedError } from "../lib/ollama.js";
+import { ErrorCode, LlamaError, abortedError } from "../lib/llama.js";
 import { stripThinking } from "../lib/parse.js";
-import { chatWithRetry, toOllamaError } from "../lib/translate.js";
+import { chatWithRetry, toLlamaError } from "../lib/translate.js";
 import { withPrioritySlot } from "../lib/priority.js";
 import { onPortClosed, safePost } from "../lib/port.js";
 import { onStop, registerQueue } from "../lib/stop.js";
@@ -51,7 +51,7 @@ async function answer(job, msg) {
   const slot = {
     signal,
     model: settings.model,
-    ollamaUrl: settings.ollamaUrl,
+    llamaUrl: settings.llamaUrl,
   };
   let numCtx;
   let webShortened = false;
@@ -69,8 +69,8 @@ async function answer(job, msg) {
     job.queued = false;
     try {
       if (numCtx && (!ctx.numCtx || ctx.numCtx < numCtx)) {
-        throw new OllamaError(ErrorCode.BAD_RESPONSE,
-          "Ollama's context length changed during web search. Send the question again to resize the text and history.");
+        throw new LlamaError(ErrorCode.BAD_RESPONSE,
+          "llama.cpp's context length changed during web search. Send the question again to resize the text and history.");
       }
       return await chatWithRetry(request(ctx), ctx, callbacks);
     } finally {
@@ -86,7 +86,7 @@ async function answer(job, msg) {
   let result;
   if (web) {
     const prepared = await withPrioritySlot(slot, async (ctx) => {
-      await checkWebAccess({ searxngUrl, numCtx: ctx.numCtx, ...slot });
+      await checkWebAccess({ searxngUrl, numCtx: ctx.numCtx, model: ctx.model });
       const { webBudget } = buildRequest({ ...input, lang: settings.targetLang, web }, ctx);
       return { numCtx: ctx.numCtx, webBudget };
     });
@@ -135,7 +135,7 @@ chrome.runtime.onConnect.addListener((port) => {
       },
       (error) => {
         if (job.controller.signal.aborted) return;
-        const err = toOllamaError(error);
+        const err = toLlamaError(error);
         if (err.code !== ErrorCode.ABORTED) {
           safePost(port, { type: "error", code: err.code, message: err.message });
         }

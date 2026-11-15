@@ -3,13 +3,13 @@ import {
   DEFAULTS,
   LIMITS,
   getSettings,
-  normalizeUrl,
+  normalizeLlamaUrl,
   resetSettings,
   setSettings,
 } from "../lib/settings.js";
 import { LANGUAGES } from "../lib/languages.js";
 import { DEFAULT_BATCH_PROMPT } from "../lib/prompt.js";
-import { ErrorCode, getVersion, listModels } from "../lib/ollama.js";
+import { ErrorCode, getVersion, listModels } from "../lib/llama.js";
 import { modelOptions } from "../lib/model-options.js";
 import { ensureHostPermission, parseServerUrl } from "../lib/host-permission.js";
 
@@ -30,6 +30,7 @@ function setupStatic() {
     ...LANGUAGES.map((l) => new Option(`${l.name} (${l.label})`, l.code)),
   );
   $("systemPrompt").placeholder = DEFAULT_BATCH_PROMPT;
+  $("llama-origin").textContent = chrome.runtime.getURL("").replace(/\/$/, "");
 }
 
 function renderModels(selected) {
@@ -38,7 +39,7 @@ function renderModels(selected) {
 }
 
 function fill(s) {
-  $("ollamaUrl").value = s.ollamaUrl;
+  $("llamaUrl").value = s.llamaUrl;
   renderModels(s.model);
   $("targetLang").value = s.targetLang;
   for (const key of NUMBER_KEYS) $(key).value = s[key];
@@ -47,7 +48,7 @@ function fill(s) {
 
 function readForm() {
   const values = {
-    ollamaUrl: normalizeUrl($("ollamaUrl").value),
+    llamaUrl: normalizeLlamaUrl($("llamaUrl").value),
     model: $("model").value,
     targetLang: $("targetLang").value,
     systemPrompt: $("systemPrompt").value.trim(),
@@ -63,10 +64,10 @@ function setSaveStatus(text) {
   $("save-status").textContent = text;
 }
 
-// ---------- Ollama ----------
+// ---------- llama.cpp ----------
 
-function setOllamaStatus(kind, text) {
-  const el = $("ollama-status");
+function setLlamaStatus(kind, text) {
+  const el = $("llama-status");
   el.dataset.kind = kind;
   el.textContent = text;
 }
@@ -74,9 +75,9 @@ function setOllamaStatus(kind, text) {
 // → URL, если адрес годится и разрешение есть; иначе пишет ошибку в статус и → null.
 // Вызывать прямо из обработчика клика (см. ensureHostPermission).
 async function prepareUrl() {
-  const url = parseServerUrl($("ollamaUrl").value);
+  const url = parseServerUrl($("llamaUrl").value);
   if (!url) {
-    setOllamaStatus("error", "The address must look like http://host:11434");
+    setLlamaStatus("error", "The address must look like http://127.0.0.1:9931");
     return null;
   }
   let granted = false;
@@ -86,30 +87,30 @@ async function prepareUrl() {
     console.error(err);
   }
   if (!granted) {
-    setOllamaStatus("error", `No permission to access ${url.origin}`);
+    setLlamaStatus("error", `No permission to access ${url.origin}`);
     return null;
   }
   return url;
 }
 
-async function checkOllama(baseUrl) {
-  setOllamaStatus("checking", "Checking Ollama…");
+async function checkLlama(baseUrl) {
+  setLlamaStatus("checking", "Checking llama.cpp…");
   $("check").disabled = true;
   try {
     let version;
     [version, models] = await Promise.all([getVersion(baseUrl), listModels(baseUrl)]);
     renderModels($("model").value);
-    if (models.length) setOllamaStatus("ok", `Ollama ${version} · models: ${models.length}`);
-    else setOllamaStatus("warn", `Ollama ${version} is running, but has no models`);
+    if (models.length) setLlamaStatus("ok", `llama.cpp ${version} · models: ${models.length}`);
+    else setLlamaStatus("warn", `llama.cpp ${version} is running, but has no models`);
   } catch (err) {
     console.error(err);
     models = [];
     renderModels($("model").value);
     const hint =
       err.code === ErrorCode.FORBIDDEN_ORIGIN
-        ? " — set OLLAMA_ORIGINS=chrome-extension://*,moz-extension://* and restart Ollama"
+        ? ` — allow ${chrome.runtime.getURL("").replace(/\/$/, "")} with --cors-origins and restart the server`
         : "";
-    setOllamaStatus("error", err.message + hint);
+    setLlamaStatus("error", err.message + hint);
   } finally {
     $("check").disabled = false;
   }
@@ -119,26 +120,26 @@ async function checkOllama(baseUrl) {
 
 $("check").addEventListener("click", async () => {
   const url = await prepareUrl();
-  if (url) await checkOllama(normalizeUrl(url.href));
+  if (url) await checkLlama(normalizeLlamaUrl(url.href));
 });
 
 $("form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const url = await prepareUrl();
   if (!url) {
-    setSaveStatus("Not saved: check the Ollama address");
+    setSaveStatus("Not saved: check the llama.cpp address");
     return;
   }
   // Пишем только поля, изменённые здесь: остальные могли сменить в popup, пока страница открыта.
   const patch = Object.fromEntries(
     Object.entries(readForm()).filter(([key, value]) => value !== settings[key]),
   );
-  const urlChanged = "ollamaUrl" in patch;
+  const urlChanged = "llamaUrl" in patch;
   await setSettings(patch);
   settings = await getSettings();
   fill(settings); // показываем значения после проверки диапазонов
   setSaveStatus("Saved");
-  if (urlChanged) await checkOllama(settings.ollamaUrl);
+  if (urlChanged) await checkLlama(settings.llamaUrl);
 });
 
 // Модель меняют и в popup. Если здесь её не трогали, показываем новую. Если выбрали другую,
@@ -159,7 +160,7 @@ $("reset").addEventListener("click", async () => {
   settings = await getSettings();
   fill(settings);
   setSaveStatus("Settings reset");
-  await checkOllama(settings.ollamaUrl);
+  await checkLlama(settings.llamaUrl);
 });
 
 // ---------- Старт ----------
@@ -167,4 +168,4 @@ $("reset").addEventListener("click", async () => {
 setupStatic();
 settings = await getSettings();
 fill(settings);
-await checkOllama(settings.ollamaUrl);
+await checkLlama(settings.llamaUrl);

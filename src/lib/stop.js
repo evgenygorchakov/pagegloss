@@ -1,18 +1,18 @@
-// «Стоп»: обрывает всю работу модели (перевод страниц и выделенного) и выгружает её из памяти.
+// «Стоп»: обрывает работу модели и выгружает её, если сервер работает в router mode.
 // Модули подписываются через onStop и друг от друга не зависят. stopAll, registerQueue и activity
 // работают в service worker, markModelUsed и isStopped — и в popup.
 
 import { getSettings } from "./settings.js";
-import { ErrorCode, unloadModel } from "./ollama.js";
+import { ErrorCode, unloadModel } from "./llama.js";
 import { busyCount } from "./slots.js";
 import { clearContextState } from "./model-context.js";
 
 // Флаг в storage.session: popup по нему не прогревает модель, которую только что выгрузили.
 // Снимается, когда к модели снова пошёл запрос.
 const STOPPED_KEY = "modelStopped";
-// Модели, которые загружало расширение: "usedModel:<url>|<model>" → { url, model }. Ключ на
+// Модели, которые загружало расширение: "usedLlamaModel:<url>|<model>" → { url, model }. Ключ на
 // модель, а не общий список: записи из service worker и popup друг друга не затрут.
-const USED_PREFIX = "usedModel:";
+const USED_PREFIX = "usedLlamaModel:";
 
 const listeners = new Set();
 const queues = new Set();
@@ -46,7 +46,7 @@ export async function stopAll() {
   stopped = true;
   tasks.push(chrome.storage.session.set({ [STOPPED_KEY]: true }));
   try {
-    await unloadUsed();
+    return { retainedModels: await unloadUsed() };
   } finally {
     await Promise.allSettled(tasks);
   }
@@ -56,12 +56,12 @@ export async function stopAll() {
 // работала прежняя. Текущую — тоже: её могли загрузить до перезапуска браузера, а storage.session
 // он очищает.
 async function unloadUsed() {
-  const [{ ollamaUrl, model }, stored] = await Promise.all([
+  const [{ llamaUrl, model }, stored] = await Promise.all([
     getSettings(),
     chrome.storage.session.get(null),
   ]);
   const used = new Map(); // ключ → { url, model }
-  if (model) used.set(usedKey(ollamaUrl, model), { url: ollamaUrl, model });
+  if (model) used.set(usedKey(llamaUrl, model), { url: llamaUrl, model });
   for (const [key, value] of Object.entries(stored)) {
     if (key.startsWith(USED_PREFIX)) used.set(key, value);
   }
@@ -77,12 +77,15 @@ async function unloadUsed() {
     }
   }));
   await forgotten;
-  // невыгруженные вернём — их выгрузит следующий «Стоп»; удалённую из Ollama выгружать незачем
+  // невыгруженные вернём — их выгрузит следующий «Стоп»; удалённую из llama.cpp выгружать незачем
   const failed = list.filter((_, i) => {
     const r = results[i];
     return r.status === "rejected" && r.reason?.code !== ErrorCode.MODEL_NOT_FOUND;
   });
-  if (!failed.length) return;
+  if (!failed.length) {
+    return list.filter((_, i) => results[i].status === "fulfilled" && results[i].value === false)
+      .map(([, m]) => m.model);
+  }
   await chrome.storage.session.set(Object.fromEntries(failed)).catch(() => {});
   throw results[list.indexOf(failed[0])].reason;
 }

@@ -20,7 +20,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
   if (msg?.type !== "stopAll") return;
   stopAll().then(
-    () => sendResponse({}),
+    (result) => sendResponse(result),
     (err) => sendResponse({ error: err.message }),
   );
   return true;

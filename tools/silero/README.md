@@ -2,7 +2,7 @@
 
 Silero `v5_5_ru` HTTP server on `http://127.0.0.1:5011`: 5 Russian voices, stress is placed by
 the model itself. The extension uses it to voice translated YouTube captions. No GPU needed: on
-CPU a phrase takes about 0.1–0.2 s, and the server doesn't compete with Ollama for VRAM.
+CPU a phrase takes about 0.1–0.2 s, and the server doesn't compete with llama.cpp for VRAM.
 
 `server.py` and `requirements.txt` are a copy of `sup/optional/voice/silero`. Keep them
 identical: a change in one goes into the other.

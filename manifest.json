@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Ollama Translator",
+  "name": "PageGloss",
   "version": "0.1.0",
-  "description": "Translates and summarizes web pages and selected text via local Ollama; dubs YouTube videos via Silero.",
+  "description": "Translates and summarizes web pages and selected text via local llama.cpp; dubs YouTube videos via Silero.",
   "minimum_chrome_version": "127",
   "browser_specific_settings": {
     "gecko": {
@@ -13,8 +13,8 @@
   },
   "permissions": ["storage", "activeTab", "scripting", "contextMenus"],
   "host_permissions": [
-    "http://localhost:11434/*",
-    "http://127.0.0.1:11434/*",
+    "http://localhost:9931/*",
+    "http://127.0.0.1:9931/*",
     "https://www.youtube.com/*",
     "http://localhost:5011/*",
     "http://127.0.0.1:5011/*"
@@ -61,7 +61,7 @@
     },
     "stop-all": {
       "suggested_key": { "default": "Alt+Shift+S" },
-      "description": "Stop: abort all translations and unload the model"
+      "description": "Stop: abort all translations and unload the model when supported"
     }
   }
 }

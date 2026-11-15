@@ -1,5 +1,5 @@
 import { getSettings, setSettings } from "../lib/settings.js";
-import { ErrorCode, getVersion, listModels, showModel } from "../lib/ollama.js";
+import { ErrorCode, getVersion, listModels } from "../lib/llama.js";
 import { modelOptions } from "../lib/model-options.js";
 import { getPageState } from "../lib/tabs.js";
 import { isStopped, markModelUsed } from "../lib/stop.js";
@@ -37,11 +37,11 @@ let acting = false; // идёт переключение, «Продолжить
 let warming = null;
 
 async function renderContext() {
-  const { ollamaUrl, model } = settings;
+  const { llamaUrl, model } = settings;
   $("context").hidden = true;
   if (!model) return;
-  const state = await readContextState(ollamaUrl, model);
-  if (settings.ollamaUrl !== ollamaUrl || settings.model !== model) return;
+  const state = await readContextState(llamaUrl, model);
+  if (settings.llamaUrl !== llamaUrl || settings.model !== model) return;
   const { text, title, ratio } = globalThis.__ollamaTranslator.contextUsage(state);
   $("context").hidden = !text;
   $("context-text").textContent = text;
@@ -53,20 +53,20 @@ async function renderContext() {
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "session" || !settings) return;
   if (changes.modelStopped?.newValue) warming?.abort();
-  const keys = Object.values(contextKeys(settings.ollamaUrl, settings.model));
+  const keys = Object.values(contextKeys(settings.llamaUrl, settings.model));
   if (keys.some((key) => key in changes)) renderContext().catch(console.warn);
 });
 
 const HINTS = {
-  [ErrorCode.OLLAMA_DOWN]: {
-    text: "Start Ollama (Windows: from the Start menu, Linux: systemctl) and press ⟳.",
+  [ErrorCode.LLAMA_DOWN]: {
+    text: "Start Llama app in Windows, download a model and start its chat/server, then press ⟳. The default address is http://127.0.0.1:9931.",
   },
   [ErrorCode.FORBIDDEN_ORIGIN]: {
-    text: "Ollama rejects requests from extensions. Set this environment variable and restart Ollama:",
-    code: "OLLAMA_ORIGINS=chrome-extension://*,moz-extension://*",
+    text: "llama.cpp rejects this extension's origin. Allow it in the server's CORS configuration and restart the server:",
+    code: `--cors-origins ${chrome.runtime.getURL("").replace(/\/$/, "")}`,
   },
   [ErrorCode.BAD_RESPONSE]: {
-    text: "Unexpected response from Ollama. See the popup console for details.",
+    text: "Unexpected response from llama.cpp. See the popup console for details.",
   },
 };
 
@@ -87,7 +87,7 @@ function updateButtons() {
   const paused = active && Boolean(pageState.paused);
   els.translate.hidden = active && !paused;
   els.translate.textContent = paused ? "▶ Resume" : "Translate page";
-  // вернуть оригинал можно всегда, переводить — только когда Ollama и модель в порядке
+  // вернуть оригинал можно всегда, переводить — только когда llama.cpp и модель в порядке
   els.translate.disabled = acting || els.status.dataset.kind !== "ok";
   els.original.hidden = !active;
   els.original.disabled = acting;
@@ -144,19 +144,17 @@ function renderModels() {
 
 function updateModelStatus() {
   if (models.length === 0) {
-    setStatus("warn", `Ollama ${version} is running, but has no models`, {
-      text: "Pull a model, for example:",
-      code: "ollama pull qwen3:8b",
+    setStatus("warn", `llama.cpp ${version} is running, but has no models`, {
+      text: "Download a model in Llama app, start its chat/server, then press ⟳.",
     });
   } else if (!settings.model) {
-    setStatus("warn", `Ollama ${version} · choose a model`);
+    setStatus("warn", `llama.cpp ${version} · choose a model`);
   } else if (!models.some((m) => m.name === settings.model)) {
     setStatus("error", `Model ${settings.model} not found`, {
-      text: "Choose another model or pull this one:",
-      code: `ollama pull ${settings.model}`,
+      text: "Choose an available model, or make this model available in Llama app and press ⟳.",
     });
   } else {
-    setStatus("ok", `Ollama ${version} · OK`);
+    setStatus("ok", `llama.cpp ${version} · OK`);
     warmUpUnlessStopped();
   }
 }
@@ -167,15 +165,15 @@ async function warmUpUnlessStopped() {
   warming?.abort();
   const controller = new AbortController();
   warming = controller;
-  const { ollamaUrl, model } = settings;
+  const { llamaUrl, model } = settings;
   if (await isStopped() || controller.signal.aborted) return;
-  markModelUsed(ollamaUrl, model); // «Стоп» выгрузит её, даже если модель сменят
+  markModelUsed(llamaUrl, model); // «Стоп» выгрузит её, даже если модель сменят
   try {
-    await loadModelContext(ollamaUrl, model, { signal: controller.signal });
+    await loadModelContext(llamaUrl, model, { signal: controller.signal });
   } catch (err) {
     if (controller.signal.aborted) return;
     console.warn("warm-up:", err);
-    if (settings.ollamaUrl === ollamaUrl && settings.model === model) {
+    if (settings.llamaUrl === llamaUrl && settings.model === model) {
       $("context").hidden = true;
       $("context-text").textContent = "";
       $("context").title = "";
@@ -187,22 +185,18 @@ async function warmUpUnlessStopped() {
 }
 
 async function check() {
-  const baseUrl = settings.ollamaUrl;
+  const baseUrl = settings.llamaUrl;
   els.refresh.disabled = true;
   els.model.disabled = true;
-  setStatus("checking", "Checking Ollama…");
+  setStatus("checking", "Checking llama.cpp…");
   try {
     [version, models] = await Promise.all([
       getVersion(baseUrl),
       listModels(baseUrl),
     ]);
-    // GET-запросы к хостам из host_permissions Chrome шлёт без Origin, и Ollama их пускает;
-    // 403 из-за OLLAMA_ORIGINS проявляется только на POST — проверяем им.
-    const probe = models.find((m) => m.name === settings.model) ?? models[0];
-    if (probe) await showModel(baseUrl, probe.name);
     // Пока шли запросы, модель или сервер могли поменять на странице настроек.
     settings = await getSettings();
-    if (settings.ollamaUrl !== baseUrl) {
+    if (settings.llamaUrl !== baseUrl) {
       await check();
       return;
     }
@@ -270,9 +264,13 @@ const togglePage = () =>
 const resumePage = () =>
   act(() => chrome.tabs.sendMessage(tabId, { type: "resume" }), "Couldn't resume translation");
 
-// Обрывает все запросы к модели на всех вкладках и выгружает её из памяти (background.js).
-// Запросы обрываются всегда, ошибкой может закончиться только выгрузка.
-const stopAll = () => act(() => askBackground({ type: "stopAll" }), "Model not unloaded");
+// Отмена доступна всегда, выгрузка — только на сервере в router mode.
+const stopAll = () => act(async () => {
+  const result = await askBackground({ type: "stopAll" });
+  showNote(result.retainedModels?.length
+    ? "Requests stopped. This server keeps its model loaded; stop it in Llama app to free memory."
+    : "Requests stopped. Models unloaded.");
+}, "Requests stopped, but model unloading failed");
 
 const resetContext = () => act(async () => {
   await askBackground({ type: "resetContext" });

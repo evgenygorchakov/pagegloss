@@ -1,4 +1,4 @@
-# Ollama Translator usage guide
+# PageGloss usage guide
 
 [Back to the README](../README.md)
 
@@ -34,7 +34,7 @@ The panel has two independent conversations:
 | **Ask about the page…** | The source text only. |
 | **Ask freely…** | The source text, the model's knowledge and reasoning, plus search excerpts when web search is enabled and used. |
 
-Each field uses the selected Ollama model and response language, and has its own history
+Each field uses the selected llama.cpp model and response language, and has its own history
 and context indicator. Translation, summarization and intermediate page-reading requests
 do not overwrite those indicators.
 
@@ -68,7 +68,7 @@ used. Follow-up questions retain references from earlier answers.
 
 Each selection starts an independent conversation. History stays in memory, never on disk,
 and is not shared with translations or either page-question field. The panel uses the same
-selected model and Ollama context setting as the rest of the extension.
+selected model and llama.cpp context setting as the rest of the extension.
 
 **Closing the panel discards its conversation.** Escape, ×, a click outside, selecting
 another passage or disabling the mode cancels the request and clears the history. Stop and
@@ -99,7 +99,7 @@ the character limit may not fit the loaded model's context. Web search reserves 
 results, leaving less room for the passage and history.
 
 The panel warns when older exchanges are omitted, search excerpts are shortened or an
-answer reaches its generation limit. Estimates are approximate; Ollama's final token counts
+answer reaches its generation limit. Estimates are approximate; llama.cpp's final token counts
 appear after a completed answer.
 
 ## Web search
@@ -122,8 +122,8 @@ SearXNG server. **Ask about the page…** always uses only the source text.
        - json
    ```
 
-3. Select an Ollama model that supports tools and set context length to at least **8192**
-   in Ollama.
+3. Select a llama.cpp model that supports tools and set context length to at least **8192**
+   in llama.cpp.
 4. In extension Settings, enter the SearXNG base address and enable **Search the web
    automatically when needed**. Press **Save** and allow access when the browser asks.
    The extension runs a sample JSON search before enabling search or saving a changed
@@ -145,7 +145,7 @@ can be answered without a search. While searching, the panel displays the query;
 include numbered references and clickable sources.
 
 - Search queries go to your SearXNG server and its configured search engines. Your selected
-  Ollama model generates the answer. No Ollama API key or Ollama cloud search service is used.
+  llama.cpp model generates the answer. No cloud model or cloud search API key is used.
 - The model receives search excerpts, not full page downloads. SearXNG does not provide
   `web_fetch` here.
 - Each question permits up to 6 tool calls across 3 rounds. Retrieved text is limited to
@@ -166,18 +166,21 @@ include numbered references and clickable sources.
 ## Context length and usage
 
 Increase context length when you need room for longer passages, conversation history or
-search results. Set it in the **Ollama app**, or use `OLLAMA_CONTEXT_LENGTH` when running
-the server. The extension does not send `num_ctx` overrides; old context settings saved in
-the extension are ignored.
+search results. Choose the context window in **Llama app** before starting the model, or
+use `llama serve -c 16384` when starting a server from a terminal. The extension does not
+override the server's context size.
 
-After loading the model, the extension reads its actual window from `/api/ps`. That window
-may be smaller than the configured setting. Changing context length in Ollama takes effect
-on the next operation; reopen the popup or press **⟳** to refresh its capacity.
+The extension reads the actual context available to one request from
+`/props?model=…` (`default_generation_settings.n_ctx`). In router mode, this also loads
+the selected model on demand. It does not use the model's training context limit, which
+can be much larger than the allocated window. Restart or reload the model after changing
+its server configuration; the next operation reads the new capacity. Reopen the popup or
+press **⟳** to refresh it there.
 
 ### Read the indicators
 
 **Context: used / total tokens · percent** shows the final request's input plus generated
-tokens, including thinking, as reported by Ollama. History is already included in the input;
+tokens, including thinking, as reported by llama.cpp. History is already included in the input;
 independent requests and intermediate web tool calls are not added together. Hover over the
 indicator for the input/output breakdown.
 
@@ -207,8 +210,10 @@ summary notes across open Summary / Ask and Text workspace panels. It cancels pe
 answers and keeps the source text, selected passage and loaded model available.
 
 Page translation and dubbing continue. Their next completed request can update the popup
-counter again. To cancel model work and unload the model, use the popup's **Stop** button
-or **Alt+Shift+S** instead.
+counter again. To cancel model work, use the popup's **Stop** button or **Alt+Shift+S**.
+In router mode, Stop also unloads the models used by the extension. A standalone server
+has no model-unload API: requests stop, but the model stays in memory until you stop its
+server in Llama app or close the server process. The popup reports this when you press Stop.
 
 ### Source limits and slow requests
 
@@ -219,7 +224,8 @@ or **Alt+Shift+S** instead.
 | Summaries, page questions and Text workspace | At least 2048 context tokens |
 | Automatic web search | At least 8192 context tokens and a model with tool support |
 
-While loading a model or waiting for a chat response to begin, the extension checks Ollama
-every 30 seconds and allows 10 seconds for each check. If Ollama stops responding, it
-cancels the attempt; normal retries still apply. Slow loading can continue while Ollama
+While loading a model or waiting for a chat response to begin, the extension checks llama.cpp
+via `/health` every 30 seconds and allows 10 seconds for each check. HTTP 503 while loading
+is treated as a live server. If llama.cpp stops responding, the extension cancels the attempt;
+normal retries still apply. Slow loading can continue while llama.cpp
 responds. Stop cancels the wait immediately.

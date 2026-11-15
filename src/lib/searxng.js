@@ -1,11 +1,11 @@
 // JSON API SearXNG; используется и проверкой настроек, и инструментом модели.
-import { ErrorCode, OllamaError, abortedError } from "./ollama.js";
+import { ErrorCode, LlamaError, abortedError } from "./llama.js";
 import { parseSearxngUrl } from "./web-settings.js";
 
 const TIMEOUT_MS = 30_000;
 
 function failure(message) {
-  return new OllamaError(ErrorCode.BAD_RESPONSE, message);
+  return new LlamaError(ErrorCode.BAD_RESPONSE, message);
 }
 
 export async function searchWeb(baseUrl, query, { signal } = {}) {
@@ -43,7 +43,7 @@ export async function searchWeb(baseUrl, query, { signal } = {}) {
   } catch (err) {
     if (signal?.aborted) throw abortedError();
     if (timeout.aborted) throw failure("SearXNG search timed out. Check the server and try again.");
-    if (err instanceof OllamaError) throw err;
+    if (err instanceof LlamaError) throw err;
     throw failure(`Could not contact SearXNG at ${url.origin}. Check the container, address and browser permission in Settings.`);
   }
 }

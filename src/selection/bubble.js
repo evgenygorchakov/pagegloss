@@ -230,7 +230,7 @@
 
   function close() {
     if (!current) return;
-    stopPort(); // отключение порта отменяет запрос к Ollama
+    stopPort(); // отключение порта отменяет запрос к llama.cpp
     current.host.remove();
     current = null;
     document.removeEventListener("pointerdown", onPointerDown, true);

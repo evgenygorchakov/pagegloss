@@ -1,6 +1,6 @@
-// Контекст выбирает Ollama. В session храним только его измерение и токены последнего
+// Контекст выбирает llama.cpp. В session храним только его измерение и токены последнего
 // завершённого запроса, отдельно для каждой пары сервер/модель. Popup читает их и после закрытия.
-import { abortedError, modelContextLength, warmUp } from "./ollama.js";
+import { abortedError, getModelProperties } from "./llama.js";
 
 export function contextKeys(baseUrl, model) {
   const key = `${baseUrl}|${model}`;
@@ -8,10 +8,10 @@ export function contextKeys(baseUrl, model) {
 }
 
 export async function loadModelContext(baseUrl, model, opts = {}) {
-  // Даже уже загруженную модель могли запустить с чужим num_ctx. Пустой запрос без options
-  // сначала применяет настройки Ollama; только после его завершения читаем /api/ps.
-  const loaded = await warmUp(baseUrl, model, opts);
-  const total = await modelContextLength(baseUrl, loaded.model || model, opts);
+  // /props сообщает выделенное окно одного слота, а не обучающий максимум модели.
+  const props = await getModelProperties(baseUrl, model, opts);
+  const length = props.default_generation_settings?.n_ctx;
+  const total = Number.isSafeInteger(length) && length > 0 ? length : null;
   if (opts.signal?.aborted) throw abortedError();
   const { capacity } = contextKeys(baseUrl, model);
   await chrome.storage.session.set({ [capacity]: total }).catch(() => {});

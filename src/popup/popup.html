@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Ollama Translator</title>
+    <title>PageGloss</title>
     <link rel="stylesheet" href="popup.css" />
     <script type="module" src="../shared/theme-page.js"></script>
     <script type="module" src="popup.js"></script>
@@ -13,7 +13,7 @@
     <header>
       <div class="brand">
         <span class="mark" aria-hidden="true">✦</span>
-        <div><h1>Ollama Translator</h1><p class="subtitle">Your local text workspace</p></div>
+        <div><h1>PageGloss</h1><p class="subtitle">Your local text workspace</p></div>
       </div>
       <div class="header-buttons">
         <button id="refresh" class="icon-button" type="button" title="Check again" aria-label="Check again">⟳</button>
@@ -29,7 +29,7 @@
 
     <section id="status" class="status" data-kind="checking">
       <span class="dot" aria-hidden="true"></span>
-      <span id="status-text">Checking Ollama…</span>
+      <span id="status-text">Checking llama.cpp…</span>
     </section>
     <div id="hint" class="hint" hidden>
       <p id="hint-text"></p>
@@ -47,7 +47,7 @@
     <div id="context" class="context" hidden>
       <div id="context-text"></div>
       <meter id="context-meter" min="0" max="1" value="0" aria-label="Context usage" hidden></meter>
-      <div class="context-note">Last completed request · context set in Ollama</div>
+      <div class="context-note">Last completed request · context set in llama.cpp</div>
     </div>
 
     <div class="actions">
@@ -55,7 +55,7 @@
         id="stop"
         class="stop"
         type="button"
-        title="Abort all model requests and unload the model from memory"
+        title="Abort all model requests; unload the model when the server supports it"
         hidden
       >
         ■ Stop

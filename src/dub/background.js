@@ -19,8 +19,8 @@
 // настройки (DUB_PLAYER_KEYS), patch сначала сохраняется; dubOptions — открыть страницу
 // настроек.
 
-import { ErrorCode } from "../lib/ollama.js";
-import { toOllamaError, translateTexts } from "../lib/translate.js";
+import { ErrorCode } from "../lib/llama.js";
+import { toLlamaError, translateTexts } from "../lib/translate.js";
 import { withPrioritySlot } from "../lib/priority.js";
 import { getSettings } from "../lib/settings.js";
 import { keepAwake } from "../lib/keepalive.js";
@@ -58,11 +58,11 @@ const CAPTION_ERRORS = {
   FAILED: { message: "Captions failed to load" },
 };
 
-// Ошибки Ollama на кнопке; подробности — в подсказке.
-const OLLAMA_ERRORS = {
-  [ErrorCode.OLLAMA_DOWN]: "Ollama isn't responding",
+// Ошибки llama.cpp на кнопке; подробности — в подсказке.
+const LLAMA_ERRORS = {
+  [ErrorCode.LLAMA_DOWN]: "llama.cpp isn't responding",
   [ErrorCode.MODEL_NOT_FOUND]: "Choose a model in the popup",
-  [ErrorCode.FORBIDDEN_ORIGIN]: "Ollama blocks the extension",
+  [ErrorCode.FORBIDDEN_ORIGIN]: "llama.cpp blocks the extension",
 };
 
 // Ошибки Silero на кнопке; подробности — в подсказке.
@@ -250,7 +250,7 @@ function deliver(session, batch, out) {
 // ---------- Синтез ----------
 
 // Цикл синтеза: по одной фразе, ближайшей к позиции, пока в окне есть переведённое без звука.
-// Идёт параллельно с переводом: пока Ollama переводит следующий батч, Silero озвучивает
+// Идёт параллельно с переводом: пока llama.cpp переводит следующий батч, Silero озвучивает
 // готовый — он на процессоре и за видеопамять с ней не спорит. Запускают его start, новая
 // позиция и каждый переведённый батч.
 async function voice(session, run) {
@@ -365,9 +365,9 @@ function fail(session, err) {
     safePost(session.port, { type: "error", code: err.code, message, detail });
     return;
   }
-  const e = toOllamaError(err);
+  const e = toLlamaError(err);
   console.warn("[ot] озвучка: перевод остановлен:", e.message);
-  const message = OLLAMA_ERRORS[e.code] ?? "Translation failed";
+  const message = LLAMA_ERRORS[e.code] ?? "Translation failed";
   safePost(session.port, { type: "error", code: e.code, message, detail: e.message });
 }
 
@@ -455,7 +455,7 @@ chrome.runtime.onConnect.addListener((port) => {
         break; // само сообщение не даёт service worker'у уснуть
     }
   });
-  // озвучку выключили, сменили видео или закрыли вкладку — запросы к Ollama и Silero обрываем
+  // озвучку выключили, сменили видео или закрыли вкладку — запросы к llama.cpp и Silero обрываем
   onPortClosed(port, () => {
     sessions.delete(session);
     if (session.run?.looping) console.debug("[ot] озвучка: вкладка отключилась, перевод оборван");

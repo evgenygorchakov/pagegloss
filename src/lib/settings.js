@@ -5,7 +5,7 @@
 import { isKnownLanguage } from "./languages.js";
 
 export const DEFAULTS = Object.freeze({
-  ollamaUrl: "http://127.0.0.1:11434", // не localhost: на Windows он может резолвиться в ::1
+  llamaUrl: "http://127.0.0.1:9931", // Llama app в Windows; не localhost, который может быть ::1
   model: "",
   targetLang: "ru", // код из languages.js
   batchMaxItems: 12,
@@ -23,11 +23,15 @@ export const LIMITS = Object.freeze({
   temperature: { min: 0, max: 1, step: 0.05 },
 });
 
-// Ollama, к которой расширению разрешено ходить без дополнительного запроса прав.
-export const BUILTIN_HOSTS = Object.freeze(["localhost:11434", "127.0.0.1:11434"]);
+// Адреса llama.cpp, доступные расширению без дополнительного запроса прав.
+export const BUILTIN_HOSTS = Object.freeze(["localhost:9931", "127.0.0.1:9931"]);
 
 export function normalizeUrl(url) {
   return String(url ?? "").trim().replace(/\/+$/, "");
+}
+
+export function normalizeLlamaUrl(url) {
+  return normalizeUrl(url).replace(/\/v1$/i, "");
 }
 
 function clamp(value, { min, max, step }, fallback) {
@@ -49,13 +53,21 @@ export function clampNumbers(values, defaults, limits) {
 
 function sanitize(values) {
   const next = clampNumbers(values, DEFAULTS, LIMITS);
-  if ("ollamaUrl" in next) next.ollamaUrl = normalizeUrl(next.ollamaUrl) || DEFAULTS.ollamaUrl;
+  if ("llamaUrl" in next) next.llamaUrl = normalizeLlamaUrl(next.llamaUrl) || DEFAULTS.llamaUrl;
   if ("targetLang" in next && !isKnownLanguage(next.targetLang)) next.targetLang = DEFAULTS.targetLang;
   return next;
 }
 
 export async function getSettings() {
-  return sanitize(await chrome.storage.local.get(DEFAULTS));
+  const stored = await chrome.storage.local.get(Object.keys(DEFAULTS));
+  if (!("llamaUrl" in stored)) {
+    // Имена моделей и адрес Ollama несовместимы с Llama app. Меняем только подключение,
+    // сохраняя язык, промпты, интерфейс, SearXNG и Silero. Новый ключ — маркер миграции.
+    const connection = { llamaUrl: DEFAULTS.llamaUrl, model: "" };
+    await chrome.storage.local.set(connection);
+    Object.assign(stored, connection);
+  }
+  return sanitize({ ...DEFAULTS, ...stored });
 }
 
 export async function setSettings(patch) {
