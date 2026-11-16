@@ -174,8 +174,9 @@ The extension reads the actual context available to one request from
 `/props?model=…` (`default_generation_settings.n_ctx`). In router mode, this also loads
 the selected model on demand. It does not use the model's training context limit, which
 can be much larger than the allocated window. Restart or reload the model after changing
-its server configuration; the next operation reads the new capacity. Reopen the popup or
-press **⟳** to refresh it there.
+its server configuration; the next operation reads the new capacity. The popup displays
+context recorded by those operations. Opening it, pressing **⟳**, or selecting a model
+checks the server and model list without loading a model into memory.
 
 ### Read the indicators
 
@@ -214,6 +215,8 @@ counter again. To cancel model work, use the popup's **Stop** button or **Alt+Sh
 In router mode, Stop also unloads the models used by the extension. A standalone server
 has no model-unload API: requests stop, but the model stays in memory until you stop its
 server in Llama app or close the server process. The popup reports this when you press Stop.
+Stop is available whenever a model is selected, even with no requests running. Closing
+the popup or browser does not unload a model already loaded in the separate server.
 
 ### Source limits and slow requests
 

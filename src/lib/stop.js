@@ -1,23 +1,17 @@
 // «Стоп»: обрывает работу модели и выгружает её, если сервер работает в router mode.
-// Модули подписываются через onStop и друг от друга не зависят. stopAll, registerQueue и activity
-// работают в service worker, markModelUsed и isStopped — и в popup.
+// Модули подписываются через onStop и друг от друга не зависят. Работает в service worker.
 
 import { getSettings } from "./settings.js";
 import { ErrorCode, unloadModel } from "./llama.js";
 import { busyCount } from "./slots.js";
 import { clearContextState } from "./model-context.js";
 
-// Флаг в storage.session: popup по нему не прогревает модель, которую только что выгрузили.
-// Снимается, когда к модели снова пошёл запрос.
-const STOPPED_KEY = "modelStopped";
 // Модели, которые загружало расширение: "usedLlamaModel:<url>|<model>" → { url, model }. Ключ на
-// модель, а не общий список: записи из service worker и popup друг друга не затрут.
+// модель, а не общий список: параллельные операции друг друга не затрут.
 const USED_PREFIX = "usedLlamaModel:";
 
 const listeners = new Set();
 const queues = new Set();
-// последнее записанное значение флага; null — неизвестно (контекст только запущен)
-let stopped = null;
 // модели, уже записанные в storage из этого контекста
 const recorded = new Set();
 
@@ -43,8 +37,6 @@ export function activity() {
 // Бросает, если какую-то модель выгрузить не удалось. Запросы к этому моменту уже оборваны.
 export async function stopAll() {
   const tasks = [...listeners].map((fn) => fn());
-  stopped = true;
-  tasks.push(chrome.storage.session.set({ [STOPPED_KEY]: true }));
   try {
     return { retainedModels: await unloadUsed() };
   } finally {
@@ -94,21 +86,12 @@ function usedKey(url, model) {
   return `${USED_PREFIX}${url}|${model}`;
 }
 
-// Вызывать перед запросом к модели: снимает флаг «Стоп» и запоминает модель, чтобы «Стоп»
-// выгрузил её, даже если в настройках к тому времени выберут другую. В storage пишет, только
-// если флаг стоял или модель ещё не записана.
+// Вызывать перед запросом к модели: запоминает модель, чтобы «Стоп» выгрузил её, даже если
+// в настройках к тому времени выберут другую. В storage пишет только для новой модели.
 export function markModelUsed(url, model) {
   const key = usedKey(url, model);
   if (model && !recorded.has(key)) {
     recorded.add(key);
     chrome.storage.session.set({ [key]: { url, model } }).catch(() => recorded.delete(key));
   }
-  if (stopped === false) return;
-  stopped = false;
-  chrome.storage.session.remove(STOPPED_KEY).catch(() => {});
-}
-
-export async function isStopped() {
-  const data = await chrome.storage.session.get(STOPPED_KEY);
-  return Boolean(data[STOPPED_KEY]);
 }

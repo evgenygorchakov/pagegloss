@@ -2,8 +2,7 @@ import { getSettings, setSettings } from "../lib/settings.js";
 import { ErrorCode, getVersion, listModels } from "../lib/llama.js";
 import { modelOptions } from "../lib/model-options.js";
 import { getPageState } from "../lib/tabs.js";
-import { isStopped, markModelUsed } from "../lib/stop.js";
-import { contextKeys, loadModelContext, readContextState } from "../lib/model-context.js";
+import { contextKeys, readContextState } from "../lib/model-context.js";
 import "../shared/context-usage.js";
 
 const $ = (id) => document.getElementById(id);
@@ -34,7 +33,6 @@ let tabId = null;
 let pageState = null; // ответ content script'а; null — ещё не внедрён или страница недоступна
 let activity = IDLE; // работа модели на всех вкладках и над выделенным, из background
 let acting = false; // идёт переключение, «Продолжить» или «Стоп»: кнопки не нажимаются
-let warming = null;
 
 async function renderContext() {
   const { llamaUrl, model } = settings;
@@ -52,7 +50,6 @@ async function renderContext() {
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "session" || !settings) return;
-  if (changes.modelStopped?.newValue) warming?.abort();
   const keys = Object.values(contextKeys(settings.llamaUrl, settings.model));
   if (keys.some((key) => key in changes)) renderContext().catch(console.warn);
 });
@@ -81,7 +78,7 @@ function setStatus(kind, text, hint) {
 }
 
 // Перевод выключен — «Перевести страницу»; включён — «Показать оригинал»; на паузе ещё и
-// «▶ Продолжить». «■ Стоп» — пока модель работает, на этой вкладке или на любой другой.
+// «▶ Продолжить». «■ Стоп» доступен и без запросов: модель может оставаться в памяти сервера.
 function updateButtons() {
   const active = Boolean(pageState?.active);
   const paused = active && Boolean(pageState.paused);
@@ -91,7 +88,7 @@ function updateButtons() {
   els.translate.disabled = acting || els.status.dataset.kind !== "ok";
   els.original.hidden = !active;
   els.original.disabled = acting;
-  els.stop.hidden = !activity.busy && !activity.queued;
+  els.stop.hidden = !settings?.model && !activity.busy && !activity.queued;
   els.stop.disabled = acting;
   els.resetContext.disabled = acting;
 }
@@ -155,35 +152,12 @@ function updateModelStatus() {
     });
   } else {
     setStatus("ok", `llama.cpp ${version} · OK`);
-    warmUpUnlessStopped();
   }
 }
 
-// Грузим модель в память заранее, пока пользователь тянется к кнопке. После «Стоп» — нет:
-// модель выгрузили намеренно, открытый popup не должен загружать её обратно.
-async function warmUpUnlessStopped() {
-  warming?.abort();
-  const controller = new AbortController();
-  warming = controller;
-  const { llamaUrl, model } = settings;
-  if (await isStopped() || controller.signal.aborted) return;
-  markModelUsed(llamaUrl, model); // «Стоп» выгрузит её, даже если модель сменят
-  try {
-    await loadModelContext(llamaUrl, model, { signal: controller.signal });
-  } catch (err) {
-    if (controller.signal.aborted) return;
-    console.warn("warm-up:", err);
-    if (settings.llamaUrl === llamaUrl && settings.model === model) {
-      $("context").hidden = true;
-      $("context-text").textContent = "";
-      $("context").title = "";
-      $("context-meter").hidden = true;
-    }
-  } finally {
-    if (warming === controller) warming = null;
-  }
-}
-
+// Открытие popup, обновление статуса и выбор модели только проверяют сервер и список.
+// /props?model=…&autoload=true вызывается при запуске операции: он загружает модель
+// в отдельный процесс сервера, который может продолжить работу после закрытия браузера.
 async function check() {
   const baseUrl = settings.llamaUrl;
   els.refresh.disabled = true;
