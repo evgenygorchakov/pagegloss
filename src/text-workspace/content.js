@@ -399,14 +399,11 @@
     closePath.setAttribute("d", "M4 4l8 8M12 4l-8 8");
     closeIcon.append(closePath);
     closeButton.append(closeIcon);
-    head.append(
-      button("", "Reset", "Reset conversation", () => reset(state)),
-      closeButton);
     const suggestions = element("div", "suggestions");
     for (const [title, question] of [
-      ["Translate", "Translate this passage into the selected translation language. Preserve its meaning and formatting. Return only the translation."],
       ["Explain", "Explain this passage in simple terms. Answer in the selected translation language."],
       ["Summarize", "Summarize the main idea of this passage. Answer in the selected translation language."],
+      ["Translate", "Translate this passage into the selected translation language. Preserve its meaning and formatting. Return only the translation."],
     ]) {
       suggestions.append(button("", title, title, () => {
         if (state.busy) return;
@@ -416,6 +413,10 @@
         state.input.focus({ preventScroll: true });
       }));
     }
+    head.append(
+      closeButton,
+      button("", "Reset", "Reset conversation", () => reset(state)),
+      suggestions);
     const thread = element("div", "thread");
     thread.hidden = true;
     thread.setAttribute("role", "region");
@@ -452,7 +453,7 @@
     const warning = element("div", "warning");
     warning.setAttribute("role", "status");
     foot.append(contextLabel, meter, warning);
-    panel.append(head, suggestions, thread, notice, form, foot);
+    panel.append(head, thread, notice, form, foot);
     box.append(trigger, panel);
     shadow.append(box);
     // Не даём обычным горячим клавишам/обработчикам сайта перехватывать ввод в панели.

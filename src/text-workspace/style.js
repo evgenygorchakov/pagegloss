@@ -24,7 +24,7 @@
     .trigger {
       display: flex; align-items: center; gap: 7px; white-space: nowrap;
       padding: 8px 12px; border: 1px solid #ffffff40; border-radius: 9px;
-      color: var(--button-fg); background: var(--accent-fill); font-weight: 600;
+      color: #fff; background: var(--accent-fill); font-weight: 600;
       box-shadow: 0 4px 14px color-mix(in srgb, var(--accent-fill) 25%, transparent), 0 1px 3px #0002;
       animation: appear 180ms cubic-bezier(.2,.8,.2,1) both;
     }
@@ -37,14 +37,14 @@
       box-shadow: var(--panel-shadow);
       animation: appear 180ms cubic-bezier(.2,.8,.2,1) both;
     }
-    .head { display: flex; justify-content: flex-end; align-items: center; gap: 4px; padding: 4px 8px; }
-    .head button {
-      display: inline-flex; align-items: center; justify-content: center;
+    .head { display: flex; align-items: center; gap: 4px; padding: 8px 12px; }
+    .head > button {
+      display: inline-flex; flex: none; align-items: center; justify-content: center;
       height: 28px; padding: 0 8px; color: var(--muted); font-size: 11px; line-height: 1;
     }
     .head .close { flex: none; width: 28px; padding: 0; }
     .close svg { display: block; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
-    .suggestions { display: flex; gap: 5px; flex-wrap: wrap; padding: 0 12px 12px; }
+    .suggestions { display: flex; justify-content: flex-end; gap: 5px; flex-wrap: wrap; min-width: 0; margin-left: auto; }
     .suggestions button { border: 1px solid var(--line); border-radius: 6px; font-size: 11px; }
     .thread { max-height: min(34vh, 280px); overflow: auto; overscroll-behavior: contain; padding: 0 12px; }
     .turn { padding: 2px 0 12px; }
