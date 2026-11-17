@@ -27,12 +27,14 @@ button {
 button:hover { background: var(--surface); }
 button:active:not(:disabled) { transform: scale(.97); }
 button:disabled { cursor: default; opacity: .45; }
-.icon-button { width: 28px; height: 28px; padding: 0; border-color: transparent; font-size: 18px; line-height: 1; }
-.settings-button {
-  display: inline-flex; align-items: center; gap: 6px;
-  height: 30px; padding: 0 8px; font-size: 12px; font-weight: 500; line-height: 1;
+.icon-button {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; padding: 0; border-color: transparent; font-size: 18px; line-height: 1;
 }
-.settings-button svg { display: block; flex: none; }
+.stop {
+  height: 28px; padding: 0 8px; font-size: 12px; font-weight: 600;
+  border-color: var(--error); color: var(--error);
+}
 
 .status {
   display: flex; align-items: center; gap: 8px; padding: 10px 12px;
@@ -68,5 +70,4 @@ select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--tint); }
   box-shadow: 0 3px 10px color-mix(in srgb, var(--accent-fill) 20%, transparent);
 }
 .actions .primary:hover { background: var(--button-hover); }
-.actions .stop { border-color: var(--error); color: var(--error); }
 .note { margin: 8px 0 0; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }

@@ -390,15 +390,18 @@
     panel.setAttribute("role", "dialog");
     panel.setAttribute("aria-label", "Text workspace");
     const head = element("div", "head");
-    const mark = element("span", "mark spark", "✦");
-    mark.setAttribute("aria-hidden", "true");
-    head.append(mark, element("span", "title", "Text workspace"),
+    const closeButton = button("close", "", "Close (Esc)", () => close(true));
+    const closeIcon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    closeIcon.setAttribute("viewBox", "0 0 16 16");
+    closeIcon.setAttribute("aria-hidden", "true");
+    closeIcon.setAttribute("focusable", "false");
+    const closePath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    closePath.setAttribute("d", "M4 4l8 8M12 4l-8 8");
+    closeIcon.append(closePath);
+    closeButton.append(closeIcon);
+    head.append(
       button("", "Reset", "Reset conversation", () => reset(state)),
-      button("close", "×", "Close (Esc)", () => close(true)));
-    const source = element("div", "source");
-    const quote = element("div", "quote", state.text);
-    quote.dir = "auto";
-    source.append(element("div", "eyebrow", `Selection · ${state.text.length.toLocaleString("en-US")} characters`), quote);
+      closeButton);
     const suggestions = element("div", "suggestions");
     for (const [title, question] of [
       ["Translate", "Translate this passage into the selected translation language. Preserve its meaning and formatting. Return only the translation."],
@@ -422,7 +425,7 @@
     notice.setAttribute("role", "status");
     const form = element("form", "composer");
     const input = element("textarea");
-    input.rows = 2;
+    input.rows = 1;
     input.maxLength = config.maxQuestion;
     input.setAttribute("aria-label", "Question about selected text");
     input.dir = "auto";
@@ -434,13 +437,11 @@
         submit(state);
       }
     });
-    const composeTools = element("div", "compose-tools");
     const send = button("send", "↑", "Send question (Enter)", () => {
       if (state.busy) stop(state);
       else submit(state);
     });
-    composeTools.append(send);
-    form.append(input, composeTools);
+    form.append(input, send);
     form.addEventListener("submit", (event) => { event.preventDefault(); submit(state); });
     const foot = element("div", "foot");
     const contextLabel = element("div", "context");
@@ -451,7 +452,7 @@
     const warning = element("div", "warning");
     warning.setAttribute("role", "status");
     foot.append(contextLabel, meter, warning);
-    panel.append(head, source, suggestions, thread, notice, form, foot);
+    panel.append(head, suggestions, thread, notice, form, foot);
     box.append(trigger, panel);
     shadow.append(box);
     // Не даём обычным горячим клавишам/обработчикам сайта перехватывать ввод в панели.

@@ -37,17 +37,13 @@
       box-shadow: var(--panel-shadow);
       animation: appear 180ms cubic-bezier(.2,.8,.2,1) both;
     }
-    .head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
-    .mark { display: grid; place-items: center; width: 25px; height: 25px; border-radius: 7px; background: var(--tint); color: var(--accent); }
-    .title { flex: 1; font-weight: 600; font-size: 12px; }
-    .head button { color: var(--muted); font-size: 11px; }
-    .head .close { font-size: 20px; line-height: 1; width: 28px; height: 28px; padding: 0; }
-    .source { margin: 12px; padding: 9px 11px; background: var(--surface); border-left: 2px solid var(--accent); border-radius: 0 6px 6px 0; }
-    .eyebrow { margin-bottom: 4px; color: var(--muted); font-size: 10px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; }
-    .quote {
-      display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
-      overflow: hidden; overflow-wrap: anywhere; white-space: pre-wrap; font-size: 12px;
+    .head { display: flex; justify-content: flex-end; align-items: center; gap: 4px; padding: 4px 8px; }
+    .head button {
+      display: inline-flex; align-items: center; justify-content: center;
+      height: 28px; padding: 0 8px; color: var(--muted); font-size: 11px; line-height: 1;
     }
+    .head .close { flex: none; width: 28px; padding: 0; }
+    .close svg { display: block; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
     .suggestions { display: flex; gap: 5px; flex-wrap: wrap; padding: 0 12px 12px; }
     .suggestions button { border: 1px solid var(--line); border-radius: 6px; font-size: 11px; }
     .thread { max-height: min(34vh, 280px); overflow: auto; overscroll-behavior: contain; padding: 0 12px; }
@@ -64,16 +60,19 @@
     .notice { padding: 0 12px 10px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
     .notice:empty { display: none; }
     .notice[data-error] { color: var(--error); }
-    .composer { margin: 0 12px 10px; padding: 8px; border: 1px solid var(--line); border-radius: 9px; background: var(--bg); transition: border-color 120ms, box-shadow 120ms; }
+    .composer {
+      display: flex; align-items: flex-end; gap: 8px;
+      margin: 0 12px 10px; padding: 6px; border: 1px solid var(--line); border-radius: 9px;
+      background: var(--bg); transition: border-color 120ms, box-shadow 120ms;
+    }
     .composer:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--tint); }
     textarea {
-      display: block; width: 100%; min-height: 46px; max-height: 120px; padding: 2px;
+      display: block; flex: 1; min-width: 0; min-height: 28px; max-height: 120px; padding: 4px 2px;
       resize: vertical; color: var(--fg); background: transparent; border: 0;
       outline: none !important; line-height: 1.5; cursor: text;
     }
     textarea::placeholder { color: var(--muted); opacity: 1; }
-    .compose-tools { display: flex; justify-content: flex-end; align-items: center; gap: 8px; padding-top: 5px; }
-    .send { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 7px; background: var(--accent-fill); color: var(--button-fg); padding: 0; font-size: 19px; }
+    .send { display: grid; place-items: center; flex: none; width: 28px; height: 28px; border-radius: 7px; background: var(--accent-fill); color: var(--button-fg); padding: 0; font-size: 19px; }
     .send:hover { background: var(--button-hover); }
     .send[data-busy] { font-size: 11px; }
     .foot { border-top: 1px solid var(--line); padding: 8px 12px; color: var(--muted); font-size: 10px; }
