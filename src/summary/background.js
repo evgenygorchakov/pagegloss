@@ -229,10 +229,11 @@ async function prepareJob(job, model) {
   model ||= settings.model;
   if (!model) throw new LlamaError(ErrorCode.MODEL_NOT_FOUND, "No model selected in the popup");
   job.llamaUrl = settings.llamaUrl;
+  job.llamaApiKey = settings.llamaApiKey;
   job.queued = 1;
   safePost(job.port, { type: "progress", step: "context" });
   const numCtx = await withPrioritySlot(
-    { signal: job.controller.signal, model, llamaUrl: job.llamaUrl },
+    { signal: job.controller.signal, model, llamaUrl: job.llamaUrl, llamaApiKey: job.llamaApiKey },
     (ctx) => ctx.numCtx,
   );
   safePost(job.port, { type: "context", context: { total: numCtx, usage: null } });
@@ -279,7 +280,7 @@ function fitHistory(job, past, max, { stage = "answer", web = false } = {}) {
 // onContent, onThinking — см. chat в lib/llama.js. И onContent, и в ответе
 // content — без рассуждения. → { content, thinking, doneReason }
 function ask(job, build, { numCtx, model, onContent, onThinking } = {}) {
-  return withPrioritySlot({ signal: job.controller.signal, model, llamaUrl: job.llamaUrl }, async (ctx) => {
+  return withPrioritySlot({ signal: job.controller.signal, model, llamaUrl: job.llamaUrl, llamaApiKey: job.llamaApiKey }, async (ctx) => {
     if (numCtx && (!ctx.numCtx || ctx.numCtx < numCtx)) {
       throw new LlamaError(ErrorCode.BAD_RESPONSE,
         "llama.cpp's context length changed while reading the text. Try again to resize the text and history.");

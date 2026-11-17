@@ -70,11 +70,12 @@ export async function createContext(settings, signal, prompts = settingsPrompts(
   if (!settings.model) throw new LlamaError(ErrorCode.MODEL_NOT_FOUND, "No model selected in the popup");
   return {
     baseUrl: settings.llamaUrl,
+    apiKey: settings.llamaApiKey,
     model: settings.model,
     temperature: settings.temperature,
     // Только для бюджета текста и счётчика; серверу это значение не отправляется.
     numCtx: await withRetry(
-      () => loadModelContext(settings.llamaUrl, settings.model, { signal }), signal,
+      () => loadModelContext(settings.llamaUrl, settings.model, { signal, apiKey: settings.llamaApiKey }), signal,
     ),
     prompts,
     signal,
@@ -89,7 +90,7 @@ export async function createContext(settings, signal, prompts = settingsPrompts(
 // начинаются заново.
 export async function chatWithRetry(body, ctx, { onContent, onThinking } = {}) {
   const res = await withRetry(
-    () => chat(ctx.baseUrl, body, { signal: ctx.signal, onContent, onThinking }),
+    () => chat(ctx.baseUrl, body, { signal: ctx.signal, apiKey: ctx.apiKey, onContent, onThinking }),
     ctx.signal,
     ctx.beforeRequest,
   );

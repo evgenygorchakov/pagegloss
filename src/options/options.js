@@ -40,6 +40,7 @@ function renderModels(selected) {
 
 function fill(s) {
   $("llamaUrl").value = s.llamaUrl;
+  $("llamaApiKey").value = s.llamaApiKey;
   renderModels(s.model);
   $("targetLang").value = s.targetLang;
   for (const key of NUMBER_KEYS) $(key).value = s[key];
@@ -49,6 +50,7 @@ function fill(s) {
 function readForm() {
   const values = {
     llamaUrl: normalizeLlamaUrl($("llamaUrl").value),
+    llamaApiKey: $("llamaApiKey").value.trim(),
     model: $("model").value,
     targetLang: $("targetLang").value,
     systemPrompt: $("systemPrompt").value.trim(),
@@ -93,12 +95,14 @@ async function prepareUrl() {
   return url;
 }
 
-async function checkLlama(baseUrl) {
+async function checkLlama(baseUrl, apiKey) {
   setLlamaStatus("checking", "Checking llama.cpp…");
   $("check").disabled = true;
   try {
     let version;
-    [version, models] = await Promise.all([getVersion(baseUrl), listModels(baseUrl)]);
+    [version, models] = await Promise.all([
+      getVersion(baseUrl, { apiKey }), listModels(baseUrl, { apiKey }),
+    ]);
     renderModels($("model").value);
     if (models.length) setLlamaStatus("ok", `llama.cpp ${version} · models: ${models.length}`);
     else setLlamaStatus("warn", `llama.cpp ${version} is running, but has no models`);
@@ -120,7 +124,7 @@ async function checkLlama(baseUrl) {
 
 $("check").addEventListener("click", async () => {
   const url = await prepareUrl();
-  if (url) await checkLlama(normalizeLlamaUrl(url.href));
+  if (url) await checkLlama(normalizeLlamaUrl(url.href), $("llamaApiKey").value.trim());
 });
 
 $("form").addEventListener("submit", async (e) => {
@@ -134,12 +138,12 @@ $("form").addEventListener("submit", async (e) => {
   const patch = Object.fromEntries(
     Object.entries(readForm()).filter(([key, value]) => value !== settings[key]),
   );
-  const urlChanged = "llamaUrl" in patch;
+  const connectionChanged = "llamaUrl" in patch || "llamaApiKey" in patch;
   await setSettings(patch);
   settings = await getSettings();
   fill(settings); // показываем значения после проверки диапазонов
   setSaveStatus("Saved");
-  if (urlChanged) await checkLlama(settings.llamaUrl);
+  if (connectionChanged) await checkLlama(settings.llamaUrl, settings.llamaApiKey);
 });
 
 // Модель меняют и в popup. Если здесь её не трогали, показываем новую. Если выбрали другую,
@@ -160,7 +164,7 @@ $("reset").addEventListener("click", async () => {
   settings = await getSettings();
   fill(settings);
   setSaveStatus("Settings reset");
-  await checkLlama(settings.llamaUrl);
+  await checkLlama(settings.llamaUrl, settings.llamaApiKey);
 });
 
 // ---------- Старт ----------
@@ -168,4 +172,4 @@ $("reset").addEventListener("click", async () => {
 setupStatic();
 settings = await getSettings();
 fill(settings);
-await checkLlama(settings.llamaUrl);
+await checkLlama(settings.llamaUrl, settings.llamaApiKey);

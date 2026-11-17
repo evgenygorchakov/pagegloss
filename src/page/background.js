@@ -30,6 +30,7 @@ const CONTENT_CSS = ["src/page/content.css"];
 // После этих ошибок остальная очередь вкладки обречена — сбрасываем её сразу.
 const FATAL_CODES = new Set([
   ErrorCode.LLAMA_DOWN,
+  ErrorCode.AUTH_REQUIRED,
   ErrorCode.FORBIDDEN_ORIGIN,
   ErrorCode.MODEL_NOT_FOUND,
 ]);
@@ -144,7 +145,7 @@ async function runBatch(client, items, settings) {
   const results = new Array(items.length);
   client.controllers.add(controller);
   running.set(controller, batch);
-  markModelUsed(settings.llamaUrl, settings.model);
+  markModelUsed(settings.llamaUrl, settings.model, settings.llamaApiKey);
   try {
     let err = null;
     try {

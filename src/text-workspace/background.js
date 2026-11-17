@@ -52,6 +52,7 @@ async function answer(job, msg) {
     signal,
     model: settings.model,
     llamaUrl: settings.llamaUrl,
+    llamaApiKey: settings.llamaApiKey,
   };
   let numCtx;
   let webShortened = false;

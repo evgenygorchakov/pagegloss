@@ -2,6 +2,7 @@
 
 export const ErrorCode = Object.freeze({
   LLAMA_DOWN: "LLAMA_DOWN",
+  AUTH_REQUIRED: "AUTH_REQUIRED",
   FORBIDDEN_ORIGIN: "FORBIDDEN_ORIGIN",
   MODEL_NOT_FOUND: "MODEL_NOT_FOUND",
   BAD_RESPONSE: "BAD_RESPONSE",
@@ -56,8 +57,8 @@ async function toHttpError(res) {
       { status });
   }
   if (status === 401) {
-    return new LlamaError(ErrorCode.BAD_RESPONSE,
-      "llama.cpp requires an API key. Use a local server started without --api-key.", { status });
+    return new LlamaError(ErrorCode.AUTH_REQUIRED,
+      "llama.cpp rejected authentication. Enter or check the API key in Settings → llama.cpp, then Save.", { status });
   }
   // Router может вернуть 400 вместо 404 для неизвестной модели.
   if ((status === 400 || status === 404) && /model.*not found|unknown model/i.test(message)) {
@@ -66,14 +67,17 @@ async function toHttpError(res) {
   return new LlamaError(ErrorCode.BAD_RESPONSE, `HTTP ${status}: ${message || res.statusText}`, { status });
 }
 
-async function request(baseUrl, path, { method = "GET", body, signal } = {}) {
+async function request(baseUrl, path, { method = "GET", body, signal, apiKey = "" } = {}) {
   let res;
   try {
     // Принимаем и адрес сервера, и привычный OpenAI base URL с /v1.
     const root = baseUrl.replace(/\/+$/, "").replace(/\/v1$/i, "");
+    const headers = {};
+    if (body !== undefined) headers["Content-Type"] = "application/json";
+    if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
     res = await fetch(root + path, {
       method,
-      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+      headers,
       body: body === undefined ? undefined : JSON.stringify(body),
       signal,
     });
@@ -119,9 +123,9 @@ export async function listModels(baseUrl, opts = {}) {
 
 // В router mode /props?model=... загружает выбранную модель и ждёт её готовности.
 // У standalone server это свойства единственной модели. Никакой генерации для прогрева.
-export async function getModelProperties(baseUrl, model, { signal } = {}) {
-  return watched(baseUrl, signal, (combined) => requestJson(baseUrl,
-    `/props?model=${encodeURIComponent(model)}&autoload=true`, { signal: combined, timeoutMs: 0 }));
+export async function getModelProperties(baseUrl, model, opts = {}) {
+  return watched(baseUrl, opts, (signal) => requestJson(baseUrl,
+    `/props?model=${encodeURIComponent(model)}&autoload=true`, { ...opts, signal, timeoutMs: 0 }));
 }
 
 // Выгрузка поддерживается router mode. Standalone server нужно остановить в приложении:
@@ -147,13 +151,13 @@ const CHAT_IDLE_MS = 180_000;
 
 // До генерации очередь и загрузка могут занять минуты. /health с 503 означает, что
 // сервер жив и грузит модель. После первого куска следим за простоем потока.
-function watchStall(baseUrl, onStall) {
+function watchStall(baseUrl, apiKey, onStall) {
   const probing = new AbortController();
   let timer = null;
   const probe = async () => {
     try {
       await requestJson(baseUrl, "/health", {
-        signal: probing.signal, timeoutMs: MODEL_PROBE_TIMEOUT_MS,
+        signal: probing.signal, timeoutMs: MODEL_PROBE_TIMEOUT_MS, apiKey,
       });
     } catch (err) {
       if (err.code === ErrorCode.LLAMA_DOWN && !probing.signal.aborted) {
@@ -180,10 +184,10 @@ function watchStall(baseUrl, onStall) {
   };
 }
 
-async function watched(baseUrl, signal, fn) {
+async function watched(baseUrl, { signal, apiKey }, fn) {
   const stall = new AbortController();
   let stallError = null;
-  const watch = watchStall(baseUrl, (message) => {
+  const watch = watchStall(baseUrl, apiKey, (message) => {
     stallError = new LlamaError(ErrorCode.LLAMA_DOWN, message);
     stall.abort();
   });
@@ -205,7 +209,7 @@ const tokenCount = (value) => Number.isSafeInteger(value) && value >= 0 ? value 
 // OpenAI SSE: data: {...}\n\n, финальное data: [DONE]. JSON и UTF-8 могут быть разбиты
 // между любыми сетевыми кусками. onContent/onThinking получают весь накопленный текст.
 export async function chat(baseUrl, body, opts = {}) {
-  return watched(baseUrl, opts.signal, async (signal, watch) => {
+  return watched(baseUrl, opts, async (signal, watch) => {
     let reader;
     let buffer = "";
     let eventData = [];
@@ -270,7 +274,7 @@ export async function chat(baseUrl, body, opts = {}) {
 
     try {
       const res = await request(baseUrl, "/v1/chat/completions", {
-        signal, method: "POST",
+        signal, method: "POST", apiKey: opts.apiKey,
         body: { ...body, stream: true, stream_options: { include_usage: true } },
       });
       if (!res.body) throw new LlamaError(ErrorCode.BAD_RESPONSE, "llama.cpp returned an empty stream");

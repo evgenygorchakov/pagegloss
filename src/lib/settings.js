@@ -6,6 +6,7 @@ import { isKnownLanguage } from "./languages.js";
 
 export const DEFAULTS = Object.freeze({
   llamaUrl: "http://127.0.0.1:9931", // Llama app в Windows; не localhost, который может быть ::1
+  llamaApiKey: "",
   model: "",
   targetLang: "ru", // код из languages.js
   batchMaxItems: 12,
@@ -54,6 +55,7 @@ export function clampNumbers(values, defaults, limits) {
 function sanitize(values) {
   const next = clampNumbers(values, DEFAULTS, LIMITS);
   if ("llamaUrl" in next) next.llamaUrl = normalizeLlamaUrl(next.llamaUrl) || DEFAULTS.llamaUrl;
+  if ("llamaApiKey" in next) next.llamaApiKey = typeof next.llamaApiKey === "string" ? next.llamaApiKey.trim() : "";
   if ("targetLang" in next && !isKnownLanguage(next.targetLang)) next.targetLang = DEFAULTS.targetLang;
   return next;
 }

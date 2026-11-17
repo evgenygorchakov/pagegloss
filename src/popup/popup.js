@@ -58,6 +58,9 @@ const HINTS = {
   [ErrorCode.LLAMA_DOWN]: {
     text: "Start Llama app in Windows, download a model and start its chat/server, then press ⟳. The default address is http://127.0.0.1:9931.",
   },
+  [ErrorCode.AUTH_REQUIRED]: {
+    text: "Open Settings → llama.cpp, enter the API key configured on your server and press Save, then press ⟳ here.",
+  },
   [ErrorCode.FORBIDDEN_ORIGIN]: {
     text: "llama.cpp rejects this extension's origin. Allow it in the server's CORS configuration and restart the server:",
     code: `--cors-origins ${chrome.runtime.getURL("").replace(/\/$/, "")}`,
@@ -159,18 +162,19 @@ function updateModelStatus() {
 // /props?model=…&autoload=true вызывается при запуске операции: он загружает модель
 // в отдельный процесс сервера, который может продолжить работу после закрытия браузера.
 async function check() {
-  const baseUrl = settings.llamaUrl;
   els.refresh.disabled = true;
   els.model.disabled = true;
   setStatus("checking", "Checking llama.cpp…");
   try {
+    settings = await getSettings();
+    const { llamaUrl: baseUrl, llamaApiKey: apiKey } = settings;
     [version, models] = await Promise.all([
-      getVersion(baseUrl),
-      listModels(baseUrl),
+      getVersion(baseUrl, { apiKey }),
+      listModels(baseUrl, { apiKey }),
     ]);
     // Пока шли запросы, модель или сервер могли поменять на странице настроек.
     settings = await getSettings();
-    if (settings.llamaUrl !== baseUrl) {
+    if (settings.llamaUrl !== baseUrl || settings.llamaApiKey !== apiKey) {
       await check();
       return;
     }

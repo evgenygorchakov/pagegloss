@@ -61,6 +61,7 @@ const CAPTION_ERRORS = {
 // Ошибки llama.cpp на кнопке; подробности — в подсказке.
 const LLAMA_ERRORS = {
   [ErrorCode.LLAMA_DOWN]: "llama.cpp isn't responding",
+  [ErrorCode.AUTH_REQUIRED]: "Check the llama.cpp API key in Settings",
   [ErrorCode.MODEL_NOT_FOUND]: "Choose a model in the popup",
   [ErrorCode.FORBIDDEN_ORIGIN]: "llama.cpp blocks the extension",
 };

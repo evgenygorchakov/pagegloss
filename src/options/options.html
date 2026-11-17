@@ -36,6 +36,15 @@
               with the server's <code>--cors-origins</code> option.
             </small>
           </div>
+          <label class="field">
+            <span>API key (optional)</span>
+            <input id="llamaApiKey" type="password" autocomplete="off" spellcheck="false" aria-describedby="llama-api-key-help" />
+            <small id="llama-api-key-help" class="help">
+              Enter the key configured on your llama.cpp server, then press Save.
+              Leave empty if the server does not require a key.
+              Check uses the key entered here without saving it.
+            </small>
+          </label>
           <p id="llama-status" class="status" data-kind="checking"></p>
 
           <label class="field">
